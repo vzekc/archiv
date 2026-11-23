@@ -20,9 +20,14 @@ type AI struct {
 	llm LLMProvider
 }
 
+// newAI sets up the language model; when that fails, the archive runs
+// without suggestions and says why in the log.
 func newAI(a *App) (*AI, error) {
 	llm, err := newLLM(a.cfg)
-	return &AI{a: a, llm: llm}, err
+	if err != nil {
+		logf("Sprachmodell aus: %v", err)
+	}
+	return &AI{a: a, llm: llm}, nil
 }
 
 func (ai *AI) enabled() bool { return ai.llm != nil }

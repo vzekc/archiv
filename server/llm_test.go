@@ -199,3 +199,14 @@ func TestAnthropicLLM(t *testing.T) {
 		}
 	}
 }
+
+// A provider that cannot be set up leaves the archive running without
+// suggestions.
+func TestLLMMissingKey(t *testing.T) {
+	a := testApp(t)
+	a.cfg.LLM, a.cfg.LLMKeyFile = "anthropic", "/nicht/da"
+	ai, err := newAI(a)
+	if err != nil || ai.enabled() {
+		t.Errorf("missing key: %v, enabled %v", err, ai.enabled())
+	}
+}
