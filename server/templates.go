@@ -40,6 +40,7 @@ func parseTemplates(a *App) (*template.Template, error) {
 		"homeTitle": func() string { return a.cfg.HomeTitle },
 		"authLocal": func() bool { return a.cfg.Auth == "local" },
 		"hasInbox":  func() bool { return a.mailbox != nil },
+		"hasMail":   func() bool { return a.mail.enabled() },
 		"unread":    a.unread,
 		"safeHTML":  func(s string) template.HTML { return template.HTML(s) },
 		"inc":       func(i int) int { return i + 1 },
