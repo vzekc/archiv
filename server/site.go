@@ -91,7 +91,7 @@ func (a *App) renderSite(w http.ResponseWriter, r *http.Request, status int, nam
 	p.Assets = a.asset
 	p.CSRF = a.csrfToken(w, r)
 	p.Notice = siteNotices[r.URL.Query().Get("ok")]
-	p.Editing = a.cfg.Editing
+	p.Editing = a.cfg.Editing && p.User != nil && !p.User.Reader
 	p.CanEdit = a.mayEdit(p.User)
 	p.CanCreateTags = a.mayCreateTags(p.User)
 	if p.Areas == nil {

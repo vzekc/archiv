@@ -112,8 +112,8 @@ func (a *App) viewZip(w http.ResponseWriter, r *http.Request, filters []Filter, 
 			"Die Dateien dieser Ansicht sind zusammen "+humanSize(size)+" groß; bitte weiter eingrenzen.", "")
 		return
 	}
-	user := "anonymous"
-	if u := currentUser(r); u != nil {
+	user := "anonymous:" + clientIP(r)
+	if u := currentUser(r); u != nil && u.ID != "" {
 		user = u.ID
 	}
 	release, status, msg := zips.take(user)

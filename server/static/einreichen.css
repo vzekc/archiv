@@ -27,7 +27,7 @@ form label { display: block; margin: 0 0 0.9rem; font-weight: 600; }
 form label .hint { font-weight: 400; color: var(--ink-faint); font-size: 0.88rem; margin-left: 0.3rem; }
 form label.check { font-weight: 400; }
 /* the upload dashboard brings its own styles */
-input[type=text]:where(:not(.uppy-Root *)), input:not([type]):where(:not(.uppy-Root *)), input[type=date]:where(:not(.uppy-Root *)), textarea:where(:not(.uppy-Root *)), select:where(:not(.uppy-Root *)) {
+input[type=text]:where(:not(.uppy-Root *)), input:not([type]):where(:not(.uppy-Root *)), input[type=date]:where(:not(.uppy-Root *)), input[type=password], input[type=email], textarea:where(:not(.uppy-Root *)), select:where(:not(.uppy-Root *)) {
 	display: block; width: 100%; max-width: 46rem; box-sizing: border-box; margin-top: 0.3rem;
 	padding: 0.5rem 0.6rem; font: inherit; font-weight: 400;
 	color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px;

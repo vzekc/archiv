@@ -1,0 +1,135 @@
+{{define "user-nav"}}<span class="who">{{if and .User (not .User.Anonymous)}}{{if hasInbox}}<a href="/nachrichten">Nachrichten{{with unread .User.ID}} <b class="unread">{{.}}</b>{{end}}</a> · {{end}}{{if eq .User.Role "archivar"}}<a href="/benutzer">Benutzer</a> · {{end}}<a href="/konto">{{name .User.ID}}</a>{{if authLocal}} · <form method="post" action="/abmelden" class="logout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Abmelden</button></form>{{end}}{{else if authLocal}}<a href="/anmelden">Anmelden</a>{{end}}</span>{{end}}
+
+{{define "login"}}{{template "head" .}}{{$d := .Data}}
+<h1>Anmelden</h1>
+{{with $d.Error}}<p class="note warn">{{.}}</p>{{end}}
+<form method="post" action="/anmelden" class="grid narrow">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<input type="hidden" name="weiter" value="{{$d.Next}}">
+	<label>Anmeldename <input name="login" value="{{$d.Login}}" autocomplete="username" required autofocus></label>
+	<label>Passwort <input type="password" name="password" autocomplete="current-password" required></label>
+	<div class="btns"><button type="submit">Anmelden</button></div>
+</form>
+{{if $d.CanReset}}<details class="act"><summary>Passwort vergessen?</summary>
+<form method="post" action="/passwort-vergessen" class="grid narrow">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<label>Anmeldename oder E-Mail-Adresse <input name="login" required></label>
+	<div class="btns"><button type="submit">Link schicken</button></div>
+</form></details>
+{{else}}<p class="meta">Passwort vergessen? Ein Archivar kann dir einen Link geben, mit dem du ein neues setzt.</p>{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "setup"}}{{template "head" .}}{{$d := .Data}}
+<h1>Archiv einrichten</h1>
+<p>Das erste Konto gehört dem ersten Archivar. Archivare legen weitere Konten an, moderieren Einreichungen und bearbeiten den Katalog.</p>
+{{with $d.Error}}<p class="note warn">{{.}}</p>{{end}}
+<form method="post" action="/einrichten" class="grid narrow">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<input type="hidden" name="schluessel" value="{{$d.Key}}">
+	<label>Anmeldename <input name="login" value="{{$d.Login}}" autocomplete="username" required autofocus></label>
+	<label>Name, wie andere ihn sehen <input name="name" value="{{$d.Name}}"></label>
+	<label>E-Mail-Adresse (optional) <input type="email" name="email" value="{{$d.Email}}"></label>
+	<label>Passwort (mindestens 10 Zeichen) <input type="password" name="password" autocomplete="new-password" required minlength="10"></label>
+	<label>Passwort noch einmal <input type="password" name="password2" autocomplete="new-password" required minlength="10"></label>
+	<div class="btns"><button type="submit">Einrichten</button></div>
+</form>
+{{template "foot" .}}{{end}}
+
+{{define "setpw"}}{{template "head" .}}{{$d := .Data}}
+<h1>Passwort setzen</h1>
+<p>Für das Konto <b>{{$d.Acc.Login}}</b> ({{$d.Acc.Name}}, {{$d.Acc.RoleLabel}}).</p>
+{{with $d.Error}}<p class="note warn">{{.}}</p>{{end}}
+<form method="post" action="/passwort/{{$d.Token}}" class="grid narrow">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<input type="text" name="login" value="{{$d.Acc.Login}}" autocomplete="username" hidden>
+	<label>Neues Passwort (mindestens 10 Zeichen) <input type="password" name="password" autocomplete="new-password" required minlength="10" autofocus></label>
+	<label>Noch einmal <input type="password" name="password2" autocomplete="new-password" required minlength="10"></label>
+	<div class="btns"><button type="submit">Speichern und anmelden</button></div>
+</form>
+{{template "foot" .}}{{end}}
+
+{{define "account"}}{{template "head" .}}{{$d := .Data}}
+<h1>Mein Konto</h1>
+{{with $d.Error}}<p class="note warn">{{.}}</p>{{end}}
+<form method="post" action="/konto" class="grid narrow">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	{{with $d.Acc}}
+	<p class="meta">Anmeldename <b>{{.Login}}</b> · Rolle {{.RoleLabel}}</p>
+	<label>Name, wie andere ihn sehen <input name="name" value="{{.Name}}" required></label>
+	<label>E-Mail-Adresse <input type="email" name="email" value="{{.Email}}"></label>
+	{{else}}{{if $d.Email}}<p class="meta">E-Mail-Adresse laut Anmeldung: {{$d.Email}}</p>{{end}}{{end}}
+	{{if $d.Mail}}<label class="chk"><input type="checkbox" name="mail" value="1"{{if not $d.MailOff}} checked{{end}}> Nachrichten auch per E-Mail bekommen</label>
+	{{else}}<input type="hidden" name="mail" value="1">{{end}}
+	{{if $d.Acc}}<fieldset><legend>Passwort ändern</legend>
+		<label>Bisheriges Passwort <input type="password" name="current" autocomplete="current-password"></label>
+		<label>Neues Passwort (mindestens 10 Zeichen) <input type="password" name="password" autocomplete="new-password" minlength="10"></label>
+		<label>Noch einmal <input type="password" name="password2" autocomplete="new-password" minlength="10"></label>
+	</fieldset>{{end}}
+	<div class="btns"><button type="submit">Speichern</button></div>
+</form>
+{{template "foot" .}}{{end}}
+
+{{define "users"}}{{template "head" .}}{{$d := .Data}}
+<h1>Benutzer</h1>
+<p class="meta"><b>Leser</b> stöbern, suchen und laden herunter. <b>Einreicher</b> reichen außerdem ein, kommentieren und schlagen Änderungen am Katalog vor. <b>Archivare</b> nehmen Einreichungen auf, bearbeiten den Katalog direkt und verwalten die Benutzer.</p>
+<div class="listing">
+{{range $d.Accounts}}
+	<div class="row">
+		<div class="nm"><a href="/benutzer/{{.ID}}">{{.Name}}</a> <span class="meta">{{.Login}}</span></div>
+		<div class="sz">{{.RoleLabel}}{{if .Disabled}} · gesperrt{{end}}</div>
+		<div class="pt">{{with .Email}}{{.}} · {{end}}{{if not .HasPass}}Passwort noch nicht gesetzt{{else if .LastLogin.Valid}}zuletzt angemeldet {{time .LastLogin.Int64}}{{else}}noch nie angemeldet{{end}}</div>
+	</div>
+{{end}}
+</div>
+<h2>Neues Konto</h2>
+{{with $d.Error}}<p class="note warn">{{.}}</p>{{end}}
+<form method="post" action="/benutzer" class="grid narrow">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<label>Anmeldename <input name="login" value="{{index $d.Form "login"}}" required></label>
+	<label>Name, wie andere ihn sehen <input name="name" value="{{index $d.Form "name"}}"></label>
+	<label>E-Mail-Adresse (optional) <input type="email" name="email" value="{{index $d.Form "email"}}"></label>
+	<label>Rolle <select name="role">{{range $d.Roles}}<option value="{{index . 0}}"{{if eq (index . 0) (index $d.Form "role")}} selected{{end}}>{{index . 1}}</option>{{end}}</select></label>
+	<div class="btns"><button type="submit">Anlegen</button></div>
+</form>
+<p class="meta">Das neue Konto bekommt einen Link, mit dem die Person ihr Passwort setzt. Mit E-Mail-Adresse und eingerichtetem Mailserver geht er per E-Mail hinaus, sonst gibst du ihn selbst weiter.</p>
+{{template "foot" .}}{{end}}
+
+{{define "user"}}{{template "head" .}}{{$d := .Data}}{{$acc := index $d "Acc"}}
+<nav class="crumbs"><a href="/benutzer">Benutzer</a></nav>
+<h1>{{$acc.Name}}</h1>
+<p class="meta">Anmeldename <b>{{$acc.Login}}</b> · angelegt {{date $acc.Created}}{{if $acc.LastLogin.Valid}} · zuletzt angemeldet {{time $acc.LastLogin.Int64}}{{end}}</p>
+{{with index $d "Error"}}<p class="note warn">{{.}}</p>{{end}}
+<form method="post" action="/benutzer/{{$acc.ID}}" class="grid narrow">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<label>Name <input name="name" value="{{$acc.Name}}"></label>
+	<label>E-Mail-Adresse <input type="email" name="email" value="{{$acc.Email}}"></label>
+	<label>Rolle <select name="role">{{range index $d "Roles"}}<option value="{{index . 0}}"{{if eq (index . 0) $acc.Role}} selected{{end}}>{{index . 1}}</option>{{end}}</select></label>
+	<label class="chk"><input type="checkbox" name="disabled" value="1"{{if $acc.Disabled}} checked{{end}}> gesperrt (kann sich nicht mehr anmelden)</label>
+	<div class="btns"><button type="submit">Speichern</button></div>
+</form>
+<h2>Passwort</h2>
+<form method="post" action="/benutzer/{{$acc.ID}}/link">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<p class="meta">{{if $acc.HasPass}}Ein neuer Link lässt die Person ein neues Passwort setzen; das alte gilt, bis sie es tut.{{else}}Das Passwort ist noch nicht gesetzt.{{end}}</p>
+	<button type="submit" class="quiet">Link zum Setzen des Passworts erzeugen</button>
+</form>
+{{template "foot" .}}{{end}}
+
+{{define "userlink"}}{{template "head" .}}{{$d := .Data}}{{$acc := index $d "Acc"}}
+<nav class="crumbs"><a href="/benutzer">Benutzer</a></nav>
+<h1>{{if index $d "Invite"}}Konto angelegt: {{else}}Neues Passwort für {{end}}{{$acc.Name}}</h1>
+<p>Mit diesem Link setzt <b>{{$acc.Login}}</b> {{if index $d "Invite"}}das Passwort{{else}}ein neues Passwort{{end}}. Er gilt 7 Tage und nur einmal.</p>
+<p><input class="link-copy" value="{{index $d "Link"}}" readonly onclick="this.select()" size="80"></p>
+{{if index $d "Sent"}}<p class="note ok">Der Link ist per E-Mail an {{$acc.Email}} unterwegs.</p>{{else}}<p class="meta">Gib den Link selbst weiter; eine E-Mail geht nur mit E-Mail-Adresse und eingerichtetem Mailserver hinaus.</p>{{end}}
+<p><a href="/benutzer">Zurück zu den Benutzern</a></p>
+{{template "foot" .}}{{end}}
+
+{{define "inbox"}}{{template "head" .}}
+<h1>Nachrichten</h1>
+{{range .Data}}
+<div class="msg{{if .Unread}} unread{{end}}">
+	<div class="mh"><b>{{.Subject}}</b> <span class="meta">{{time .At}}</span></div>
+	<div class="mb">{{safeHTML .HTML}}</div>
+</div>
+{{else}}<p class="meta">Keine Nachrichten.</p>{{end}}
+{{template "foot" .}}{{end}}

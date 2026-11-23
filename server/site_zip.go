@@ -103,8 +103,8 @@ func (a *App) zipDir(w http.ResponseWriter, r *http.Request) {
 				humanSize(size), num(n), humanSize(zipMaxBytes)), rel)
 		return
 	}
-	user := "anonymous"
-	if u := currentUser(r); u != nil {
+	user := "anonymous:" + clientIP(r)
+	if u := currentUser(r); u != nil && u.ID != "" {
 		user = u.ID
 	}
 	release, status, msg := zips.take(user)

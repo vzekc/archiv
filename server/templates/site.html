@@ -15,6 +15,7 @@
 		<div class="brand">
 			<a class="home" href="/">{{site}}</a>
 			{{with tagline}}<span class="tag">{{.}}</span>{{end}}
+			{{template "user-nav" .}}
 		</div>
 		{{template "site-searchform" .}}
 	</div>
@@ -37,7 +38,7 @@
 
 {{define "site-foot"}}
 	<footer>
-		Stand {{.Stamp}} · <a href="/suche">Suche</a> · <a href="/aenderungen">Letzte Änderungen</a> · <a href="/einreichen/">Einreichen</a>{{if and .User .User.Moderator}} · <a href="/browser">Archiv-Browser</a> · <a href="/moderation">Vorschläge und Meldungen</a> · <a href="/moderation/import">Katalog</a>{{end}}
+		Stand {{.Stamp}} · <a href="/suche">Suche</a> · <a href="/aenderungen">Letzte Änderungen</a>{{if and .User (not .User.Reader)}} · <a href="/einreichen/">Einreichen</a>{{end}}{{if and .User .User.Moderator}} · <a href="/browser">Archiv-Browser</a> · <a href="/moderation">Vorschläge und Meldungen</a> · <a href="/moderation/import">Katalog</a>{{end}}
 	</footer>
 </div>
 </body>
@@ -159,7 +160,7 @@
 {{define "site-queue"}}{{$q := .Data}}{{template "site-head" .}}
 <h1>Vorschläge und Meldungen</h1>
 <p class="meta">Jeder Kasten ist ein Vorschlag, von einem Mitglied oder automatisch. Die Haken wählen aus, welche Änderungen „Übernehmen“ oder „Ablehnen“ betrifft. Ein Klick auf ein Objekt öffnet es in einem neuen Fenster.</p>
-{{if not $q.Editing}}<p class="note">Der Katalog ist noch schreibgeschützt; Vorschläge und Meldungen gibt es, sobald die alte Seite abgeschaltet ist.</p>{{end}}
+{{if not $q.Editing}}<p class="note">Der Katalog ist schreibgeschützt (Einstellung <code>editing</code>); Vorschläge und Meldungen gibt es erst, wenn er bearbeitet werden darf.</p>{{end}}
 <h2>Vorschläge</h2>
 {{if not $q.Batches}}<p class="meta">Keine offenen.</p>{{else}}<p class="meta">{{$q.Total}} offen{{if $q.Pages}}, Seite {{$q.Page}}:{{range $q.Pages}} {{if eq . $q.Page}}<b>{{.}}</b>{{else}}<a href="/moderation?seite={{.}}">{{.}}</a>{{end}}{{end}}{{end}}</p>{{end}}
 {{range $q.Batches}}<form method="post" action="/moderation/vorschlaege" class="batch">
@@ -191,7 +192,7 @@
 <meta name="csrf" content="{{.CSRF}}">
 <meta name="editing" content="{{if .Editing}}1{{else}}0{{end}}">
 <link rel="stylesheet" href="/einreichen/static/browser.css?v={{v}}">
-{{if not .Editing}}<p class="note">Nur zum Ansehen: Der Katalog ist schreibgeschützt, bis die alte Seite abgeschaltet ist.</p>{{end}}
+{{if not .Editing}}<p class="note">Nur zum Ansehen: Der Katalog ist schreibgeschützt (Einstellung <code>editing</code>).</p>{{end}}
 <div class="browser">
 	<aside><ul id="tree" class="tree"></ul></aside>
 	<section>

@@ -16,9 +16,12 @@ genauso für die eigene Sammlung zu Hause.
   aufschlägt.
 - **Vorschaubilder** für Bilder und die erste Seite jedes PDFs.
 - **Einreichungen**: Dateien hochladen (auch sehr große, Uploads setzen nach
-  Abbrüchen wieder auf), beschreiben, einreichen. Eine KI (Claude von
-  Anthropic, optional) schlägt Schlagworte und Beschreibungen vor und erkennt
-  Dubletten; Moderatoren prüfen und nehmen auf.
+  Abbrüchen wieder auf), beschreiben, einreichen. Ein Sprachmodell (optional)
+  schlägt Schlagworte und Beschreibungen vor und erkennt Dubletten;
+  Archivare prüfen und nehmen auf.
+- **Konten und Rollen**: Leser, Einreicher, Archivare; auf Wunsch dürfen
+  auch Besucher ohne Konto lesen. Nachrichten im Archiv und per E-Mail
+  halten alle auf dem Laufenden.
 - **Bearbeiten im Browser** mit vollständigem Verlauf: Wer nicht selbst
   bearbeiten darf, macht Vorschläge, über die Moderatoren entscheiden.
 - **ZIP-Download** ganzer Ordner und Objekte.
@@ -54,10 +57,15 @@ und nicht warten will, stößt den Abgleich von Hand an:
 docker compose exec archiv /opt/archiv/bin/reindex.sh
 ```
 
-Ohne Einstellungen gibt es keine Anmeldung: Jeder, der die Seite erreicht,
-ist „Archivar“ und darf alles. Das passt für einen Rechner im eigenen Netz;
-wer das Archiv ins Internet stellt, braucht eine Anmeldung (siehe
-[Anmeldung](#anmeldung)).
+Beim ersten Start hat das Archiv noch kein Konto. Den Link zur Einrichtung
+schreibt der Dienst in sein Protokoll:
+
+```sh
+docker compose logs archiv | grep einrichten
+```
+
+Auf der Einrichtungsseite entsteht das Konto des ersten Archivars; weitere
+Konten legt er unter „Benutzer“ an (siehe [Anmeldung](#anmeldung)).
 
 ## Einstellungen
 
@@ -71,16 +79,21 @@ Vorlage liegt in [`examples/archiv.conf`](examples/archiv.conf).
 | `site_title` | Name im Seitenkopf | Hostname aus `site_url` |
 | `site_tagline` | Zeile neben dem Namen | leer |
 | `home_title` | Überschrift der Startseite | `site_title` |
-| `archive_name` | wie die KI das Archiv nennt, z. B. „Archiv der Familie Müller“ | `Archiv` |
-| `auth` | `single` oder `header`, siehe [Anmeldung](#anmeldung) | `single` |
-| `single_user` | bei `auth = single`: Name der einen Person | `Archivar` |
+| `archive_name` | wie das Sprachmodell das Archiv nennt, z. B. „Archiv der Familie Müller“ | `Archiv` |
+| `auth` | `local` oder `header`, siehe [Anmeldung](#anmeldung) | `local` |
+| `open_read` | `on`: Besucher ohne Konto dürfen lesen (bei `auth = local`) | aus |
 | `moderator_group` | Gruppe der Moderatoren | `Moderatoren` |
 | `edit_group` | Gruppe, die den Katalog direkt bearbeitet; alle anderen schlagen vor | `Moderatoren` |
 | `tag_create_group` | Gruppe, die neue Schlagworte anlegt | `Moderatoren` |
-| `intake` | `direct`: eigene Einreichungen von Moderatoren gehen nach der KI gleich zur Aufnahme; `moderated`: alle laufen über die Liste der Moderation | `moderated` |
+| `intake` | `direct`: eigene Einreichungen von Archivaren gehen nach dem Sprachmodell gleich zur Aufnahme; `moderated`: alle laufen über die Liste der Moderation | `moderated` |
 | `editing` | `on`: Katalog im Browser bearbeiten | aus |
-| `api_key_file` | Datei mit dem API-Schlüssel von Anthropic; ohne sie gibt es keine KI-Vorschläge | `data/anthropic.key` |
-| `model` | das Claude-Modell | `claude-opus-5-5` |
+| `llm` | Anbieter des Sprachmodells, siehe [Vorschläge des Sprachmodells](#vorschläge-des-sprachmodells); leer: keine Vorschläge | leer |
+| `llm_model` | Name des Modells beim Anbieter | je nach Anbieter |
+| `llm_key_file` | Datei mit dem API-Schlüssel | `data/llm.key` |
+| `llm_url` | Adresse des Dienstes, für lokale Modelle und andere Anbieter | je nach Anbieter |
+| `smtp_host`, `smtp_port` | Mailserver für Benachrichtigungen; ohne ihn gibt es nur die Nachrichten im Archiv | leer, 587 |
+| `smtp_user`, `smtp_password_file` | Anmeldung am Mailserver | leer |
+| `mail_from` | Absender der E-Mails | leer |
 | `max_file_gb`, `max_submission_gb`, `max_pending_gb` | Grenzen je Datei, je Einreichung, offen je Person | 20, 50, 100 |
 | `thumbs` | Vorschaubilder nach Prüfsumme (`hash`) oder nach Pfad (`path`) ablegen | `hash` |
 | `home` | die Installation; alle Pfade liegen darunter | `$ARCHIV_HOME`, sonst das Arbeitsverzeichnis |
@@ -97,27 +110,73 @@ steht am Anfang der [Vorlage](examples/taxonomy.conf). Weitere Schlagworte
 entstehen beim Arbeiten: beim Aufnehmen von Einreichungen und beim
 Bearbeiten im Browser.
 
-### KI-Vorschläge
+### Vorschläge des Sprachmodells
 
-Mit einem API-Schlüssel von Anthropic in `data/anthropic.key` ordnet Claude
-Einreichungen ein: Es gruppiert die Dateien, schlägt Schlagworte und
-Beschreibungen vor und nennt Auffälligkeiten. Entschieden wird immer von
-Menschen. Der Befehl `archiv classify` schlägt außerdem Schlagworte für
-Objekte vor, die noch keine haben – nützlich, wenn eine große, bisher nur in
-Ordnern sortierte Sammlung ins Archiv kommt. Die Aufrufe kosten Geld nach
-den Preisen von Anthropic.
+Mit einem Sprachmodell ordnet das Archiv Einreichungen vor: Es gruppiert die
+Dateien, schlägt Schlagworte und Beschreibungen vor und nennt
+Auffälligkeiten; dabei sieht es sich im Archiv um, wie Ähnliches eingeordnet
+ist. Entschieden wird immer von Menschen. Der Befehl `archiv classify`
+schlägt außerdem Schlagworte für Objekte vor, die noch keine haben –
+nützlich, wenn eine große, bisher nur in Ordnern sortierte Sammlung ins
+Archiv kommt.
+
+`llm` wählt die Schnittstelle:
+
+- `openai` – jeder Dienst mit der Chat-Completions-Schnittstelle von OpenAI.
+  Das sind neben OpenAI selbst viele andere Anbieter und lokale Modelle über
+  Ollama, LM Studio oder vLLM. Für ein lokales Modell über Ollama:
+
+  ```
+  llm = openai
+  llm_url = http://localhost:11434/v1
+  llm_model = qwen3:32b
+  ```
+
+- `anthropic` – die Messages-Schnittstelle von Anthropic.
+
+Das Modell muss Werkzeugaufrufe und Antworten nach JSON-Schema beherrschen
+und Bilder lesen können; je größer, desto besser die Vorschläge. Bei
+Anbietern im Netz kosten die Aufrufe Geld nach deren Preisen. Weitere
+Schnittstellen lassen sich als Erweiterung anschließen (`archiv.RegisterLLM`,
+siehe [`server/llm.go`](server/llm.go)).
 
 ## Anmeldung
 
-**`auth = single`** – keine Anmeldung. Jeder Aufruf ist dieselbe Person, die
-moderiert und bearbeitet. Für ein Archiv, das nur im eigenen Netz erreichbar
-ist.
+**`auth = local`** (Vorgabe) – das Archiv verwaltet die Konten selbst. Jedes
+Konto hat eine Rolle:
+
+| Rolle | darf |
+|---|---|
+| Leser | stöbern, suchen, lesen, herunterladen |
+| Einreicher | dazu einreichen, kommentieren, Änderungen am Katalog vorschlagen |
+| Archivar | dazu Einreichungen aufnehmen, den Katalog direkt bearbeiten, Schlagworte anlegen, Benutzer verwalten |
+
+Archivare legen unter „Benutzer“ neue Konten an. Jedes bekommt einen Link,
+mit dem die Person ihr Passwort setzt; mit E-Mail-Adresse und eingerichtetem
+Mailserver geht er per E-Mail hinaus, sonst gibt der Archivar ihn weiter.
+Über denselben Weg kommt ein vergessenes Passwort neu; mit Mailserver
+schickt die Anmeldeseite den Link auch selbst. Mit `open_read = on` dürfen
+Besucher ohne Konto lesen wie ein Leser.
+
+Auf der Kommandozeile geht dasselbe:
+
+```sh
+archiv user add -login erika -name "Erika Muster" -role archivar
+archiv user link -login erika      # neuer Link zum Setzen des Passworts
+archiv user list
+```
+
+(Im Container: `docker compose exec archiv archiv user …`.)
+
+Wer das Archiv ins Internet stellt, setzt einen Proxy mit TLS davor
+(Caddy, nginx, Apache) und trägt die öffentliche Adresse als `site_url` ein.
 
 **`auth = header`** – ein Proxy vor dem Archiv meldet an und gibt Kennung,
-Namen und Gruppen der Person als Kopfzeilen weiter. Erprobt ist Apache mit
+Namen, E-Mail-Adresse und Gruppen der Person als Kopfzeilen weiter. Wer
+angemeldet ist, darf einreichen; die Gruppe `moderator_group` ist Archivar. Erprobt ist Apache mit
 `mod_auth_openidc` gegen einen OpenID-Connect-Anbieter; jeder andere, der
 Kopfzeilen setzt, geht genauso. Die Namen der Kopfzeilen sind einstellbar
-(`user_header`, `name_header`, `groups_header`). Der Dienst muss dann so
+(`user_header`, `name_header`, `email_header`, `groups_header`). Der Dienst muss dann so
 laufen, dass er nur über den Proxy erreichbar ist (`listen = 127.0.0.1:8095`),
 und der Proxy muss diese Kopfzeilen aus dem entfernen, was der Browser
 schickt – `mod_auth_openidc` tut das.
@@ -149,6 +208,20 @@ Ein Beispiel für Apache:
     RewriteRule ^ http://127.0.0.1:8095%{REQUEST_URI} [P]
 </VirtualHost>
 ```
+
+## Nachrichten
+
+Was mit Einreichungen geschieht, erfahren die Beteiligten im Archiv unter
+„Nachrichten“ und, mit eingerichtetem Mailserver, per E-Mail: Archivare von
+neuen Einreichungen, Antworten und liegengebliebenen Übernahmen, Einreicher
+von Rückfragen und davon, ob ihre Einreichung aufgenommen ist. Ebenso kommen
+Antworten auf Kommentare, Entscheidungen über Vorschläge zum Katalog und die
+tägliche Übersicht der offenen Vorschläge an. Unter „Mein Konto“ lässt sich
+die E-Mail abschalten. Die Besprechung einer Einreichung steht in ihren
+Kommentaren.
+
+Eine Erweiterung kann diese Aufgabe übernehmen und die Nachrichten anderswo
+hin bringen, etwa in ein Forum; dann entfallen die eingebauten Nachrichten.
 
 ## Ohne Docker
 
@@ -184,7 +257,8 @@ Installation über `$ARCHIV_HOME` oder, ohne diese Variable, im Verzeichnis
 ```
 archiv serve                       der Webdienst (Vorgabe)
 archiv sync                        Katalog mit den Dateien abgleichen (macht reindex.sh)
-archiv classify                    Schlagworte für Objekte ohne vorschlagen (KI)
+archiv classify                    Schlagworte für Objekte ohne vorschlagen (Sprachmodell)
+archiv user add|link|list          Konten bei auth = local
 archiv export-descriptions <dir>   Katalog als descriptions-Dateien schreiben
 archiv split-item, merge-gone      Objekte teilen, entfernte Dateien zusammenführen
 ```

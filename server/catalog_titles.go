@@ -8,8 +8,6 @@ import (
 	"path"
 	"strings"
 	"unicode/utf8"
-
-	"github.com/anthropics/anthropic-sdk-go/v2"
 )
 
 // Titles for the items of the old tree that are called by their file
@@ -92,25 +90,16 @@ func (a *App) titleBatch(ctx context.Context, run string, items []titleItem) (in
 		}}},
 	}
 	body, _ := json.MarshalIndent(items, "", " ")
-	resp, err := a.ai.send(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.Model(a.cfg.Model),
+	text, _, err := a.ai.run(ctx, &LLMTask{
+		Label:     fmt.Sprintf("titles of %d items", len(items)),
+		System:    promptText(titlesPrompt),
+		User:      []LLMPart{{Text: string(body)}},
+		Schema:    schema,
 		MaxTokens: 8000,
-		System:    []anthropic.TextBlockParam{{Text: promptText(titlesPrompt)}},
-		OutputConfig: anthropic.OutputConfigParam{
-			Effort: anthropic.OutputConfigEffortMedium,
-			Format: anthropic.JSONOutputFormatParam{Schema: schema},
-		},
-		Messages: []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(string(body)))},
+		Effort:    "medium",
 	})
 	if err != nil {
 		return 0, err
-	}
-	logf("titles: %d items: in %d, out %d", len(items), resp.Usage.InputTokens, resp.Usage.OutputTokens)
-	var text string
-	for _, b := range resp.Content {
-		if t, ok := b.AsAny().(anthropic.TextBlock); ok {
-			text += t.Text
-		}
 	}
 	var ans struct {
 		Items []struct {
@@ -133,7 +122,7 @@ func (a *App) titleBatch(ctx context.Context, run string, items []titleItem) (in
 		if !ok || title == "" || title == file {
 			continue
 		}
-		reason := "KI, aus dem Text des Dokuments"
+		reason := "Sprachmodell, aus dem Text des Dokuments"
 		if x.Note != "" {
 			reason += ": " + x.Note
 		}
@@ -239,25 +228,16 @@ func (a *App) proposeTitlesKinds(ctx context.Context, run string, ids []int64) (
 		batch := items[i:min(i+25, len(items))]
 		body, _ := json.MarshalIndent(batch, "", " ")
 		system := strings.ReplaceAll(promptText(itemsPrompt), "{kinds}", strings.Join(a.kindChoices(), ", "))
-		resp, err := a.ai.send(ctx, anthropic.MessageNewParams{
-			Model:     anthropic.Model(a.cfg.Model),
+		text, _, err := a.ai.run(ctx, &LLMTask{
+			Label:     fmt.Sprintf("titles and kinds of %d items", len(batch)),
+			System:    system,
+			User:      []LLMPart{{Text: string(body)}},
+			Schema:    schema,
 			MaxTokens: 8000,
-			System:    []anthropic.TextBlockParam{{Text: system}},
-			OutputConfig: anthropic.OutputConfigParam{
-				Effort: anthropic.OutputConfigEffortMedium,
-				Format: anthropic.JSONOutputFormatParam{Schema: schema},
-			},
-			Messages: []anthropic.MessageParam{anthropic.NewUserMessage(anthropic.NewTextBlock(string(body)))},
+			Effort:    "medium",
 		})
 		if err != nil {
 			return n, err
-		}
-		logf("titles and kinds: %d items: in %d, out %d", len(batch), resp.Usage.InputTokens, resp.Usage.OutputTokens)
-		var text string
-		for _, b := range resp.Content {
-			if t, ok := b.AsAny().(anthropic.TextBlock); ok {
-				text += t.Text
-			}
 		}
 		var ans struct {
 			Items []struct {
@@ -277,7 +257,7 @@ func (a *App) proposeTitlesKinds(ctx context.Context, run string, ids []int64) (
 			if !ok {
 				continue
 			}
-			reason := "KI, aus Namen und Inhalt"
+			reason := "Sprachmodell, aus Namen und Inhalt"
 			if x.Note != "" {
 				reason += ": " + x.Note
 			}

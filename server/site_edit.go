@@ -41,7 +41,7 @@ func (a *App) editing(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !a.cfg.Editing {
 			a.renderSite(w, r, http.StatusForbidden, "site-error", &SitePage{Title: "Noch nicht freigeschaltet",
-				Data: "Der Katalog kann bearbeitet werden, sobald die alte Seite abgeschaltet ist."})
+				Data: "Der Katalog ist schreibgeschützt (Einstellung editing)."})
 			return
 		}
 		h(w, r)

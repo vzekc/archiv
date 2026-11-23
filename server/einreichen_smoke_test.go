@@ -21,7 +21,7 @@ func testApp(t *testing.T) *App {
 	cfg.ArchiveRoot, _ = filepath.Abs("testdata/archive")
 	cfg.CollectionDB = filepath.Join(dir, "collection.sqlite")
 	cfg.CatalogDB = filepath.Join(dir, "catalog.sqlite")
-	cfg.APIKeyFile = filepath.Join(dir, "no-key")
+	cfg.LLMKeyFile = filepath.Join(dir, "no-key")
 	cfg.DevUser = "1:hans:Vereinsmitglieder,Moderatoren"
 	cfg.resolve()
 	a, err := newApp(cfg)

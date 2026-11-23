@@ -44,15 +44,23 @@ type Config struct {
 	ModeratorGrp    string
 	EditGroup       string // edits the catalog directly; everyone else proposes
 	TagCreateGrp    string // creates new tags
-	Editing         bool   // the catalog can be edited (after the old site is switched off)
+	Editing         bool   // the catalog can be edited in the browser
 	ThumbsByHash    bool   // thumbnails and previews lie at <dir>/<sha[0:2]>/<sha>.jpg (thumbs = hash)
-	APIKeyFile      string
-	Model           string
-	Auth            string // header: a proxy in front passes user, name and groups (OIDC); single: one user, no login
+	LLM             string // language model provider: anthropic, openai (any OpenAI-compatible service); empty: no suggestions
+	LLMModel        string // the model's name at the provider
+	LLMKeyFile      string // file holding the provider's API key
+	LLMURL          string // the service's address, for local or other OpenAI-compatible services
+	Auth            string // local: accounts kept by the archive; header: a proxy in front passes user, name and groups (OIDC)
+	OpenRead        bool   // auth = local: visitors without an account may read
 	UserHeader      string // auth = header: the user's id
 	NameHeader      string // auth = header: the user's display name (optional)
 	GroupsHeader    string // auth = header: the user's groups, comma-separated
-	SingleUser      string // auth = single: the name the one user goes by
+	EmailHeader     string // auth = header: the user's email address (optional)
+	SMTPHost        string // mail server for notifications; empty: no email
+	SMTPPort        int
+	SMTPUser        string
+	SMTPPassFile    string // file holding the mail server's password
+	MailFrom        string // sender address of notifications
 	DirectIntake    bool   // a moderator's own submission goes into the archive without a review step
 	MaxFile         int64
 	MaxSubmission   int64
@@ -75,16 +83,16 @@ func defaultConfig() *Config {
 		ModeratorGrp:    "Moderatoren",
 		EditGroup:       "Moderatoren",
 		TagCreateGrp:    "Moderatoren",
-		Model:           "claude-opus-5-5",
 		ArchiveName:     "Archiv",
 		EventsHint:      "Fotos von Treffen und Ausstellungen",
 		CollectionsHint: "Sammlungen auf CD und DVD",
-		Auth:            "single",
+		Auth:            "local",
 		ThumbsByHash:    true,
 		UserHeader:      "OIDC_CLAIM_sub",
 		NameHeader:      "OIDC_CLAIM_preferred_username",
 		GroupsHeader:    "OIDC_CLAIM_groups",
-		SingleUser:      "Archivar",
+		EmailHeader:     "OIDC_CLAIM_email",
+		SMTPPort:        587,
 		MaxFile:         20 * GB,
 		MaxSubmission:   50 * GB,
 		MaxPending:      100 * GB,
@@ -128,7 +136,7 @@ func (c *Config) resolve() {
 	at(&c.BinDir, "bin")
 	at(&c.ReindexLock, "data", "reindex.lock")
 	at(&c.BackupDir, "backup", "einreichungen")
-	at(&c.APIKeyFile, "data", "anthropic.key")
+	at(&c.LLMKeyFile, "data", "llm.key")
 	c.SiteURL = strings.TrimRight(c.SiteURL, "/")
 	c.BasePath = "/" + strings.Trim(c.BasePath, "/")
 	if c.BaseURL == "" {
@@ -183,8 +191,8 @@ func loadConfig(fs *flag.FlagSet, args []string) (*Config, error) {
 		c.StagingDir = *staging
 	}
 	c.resolve()
-	if c.Auth != "header" && c.Auth != "single" {
-		return nil, fmt.Errorf("auth: header or single, not %q", c.Auth)
+	if c.Auth != "header" && c.Auth != "local" {
+		return nil, fmt.Errorf("auth: local or header, not %q", c.Auth)
 	}
 	return c, nil
 }
@@ -223,8 +231,10 @@ func (c *Config) set(k, v string) error {
 		"legacy_map": &c.LegacyMap, "mirrors_conf": &c.MirrorsConf, "bin": &c.BinDir, "reindex_lock": &c.ReindexLock,
 		"backup": &c.BackupDir, "moderator_group": &c.ModeratorGrp,
 		"edit_group": &c.EditGroup, "tag_create_group": &c.TagCreateGrp,
-		"api_key_file": &c.APIKeyFile, "model": &c.Model, "auth": &c.Auth, "user_header": &c.UserHeader,
-		"name_header": &c.NameHeader, "groups_header": &c.GroupsHeader, "single_user": &c.SingleUser,
+		"llm": &c.LLM, "llm_model": &c.LLMModel, "llm_key_file": &c.LLMKeyFile, "llm_url": &c.LLMURL,
+		"auth": &c.Auth, "user_header": &c.UserHeader,
+		"name_header": &c.NameHeader, "groups_header": &c.GroupsHeader, "email_header": &c.EmailHeader,
+		"smtp_host": &c.SMTPHost, "smtp_user": &c.SMTPUser, "smtp_password_file": &c.SMTPPassFile, "mail_from": &c.MailFrom,
 	}
 	if p, ok := str[k]; ok {
 		*p = v
@@ -244,6 +254,15 @@ func (c *Config) set(k, v string) error {
 	if k == "editing" {
 		c.Editing = v == "on" || v == "yes" || v == "ja" || v == "true" || v == "1"
 		return nil
+	}
+	if k == "open_read" {
+		c.OpenRead = v == "on" || v == "yes" || v == "ja" || v == "true" || v == "1"
+		return nil
+	}
+	if k == "smtp_port" {
+		n, err := strconv.Atoi(v)
+		c.SMTPPort = n
+		return err
 	}
 	if k == "intake" {
 		switch v {

@@ -39,7 +39,7 @@ func (n *Names) Name(id string) string {
 	}
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if name, ok := n.cache[id]; ok {
+	if name, ok := n.cache[id]; ok && name != "" {
 		return name
 	}
 	n.missing[id] = true

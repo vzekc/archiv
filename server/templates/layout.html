@@ -18,11 +18,11 @@
 			{{with tagline}}<span class="tag">{{.}}</span>{{end}}
 		</div>
 		<nav class="ein-nav">
-			<a href="{{.Base}}/">Meine Einreichungen</a>
+			{{if and .User (not .User.Reader)}}<a href="{{.Base}}/">Meine Einreichungen</a>
 			<a href="{{.Base}}/liste">Eingereicht</a>
 			{{if .User.Moderator}}<a href="{{.Base}}/moderation">Moderation</a>{{end}}
-			<a href="{{.Base}}/hilfe">Hilfe</a>
-			<span class="who">{{.UserName}}</span>
+			<a href="{{.Base}}/hilfe">Hilfe</a>{{end}}
+			{{template "user-nav" .}}
 		</nav>
 	</div>
 </header>
@@ -32,7 +32,7 @@
 
 {{define "foot"}}
 	<footer>
-		<a href="/">Archiv</a> · <a href="{{.Base}}/hilfe">Hilfe zum Einreichen</a>
+		<a href="/">Archiv</a>{{if and .User (not .User.Reader)}} · <a href="{{.Base}}/hilfe">Hilfe zum Einreichen</a>{{end}}
 	</footer>
 </div>
 </body>
@@ -62,7 +62,7 @@
 
 {{define "home"}}{{template "head" .}}
 <h1>Einreichungen</h1>
-<p class="meta">Hier lädst du Dateien für das Archiv hoch. Eine KI schlägt vor, wie sie eingeordnet werden; ein Moderator prüft und nimmt sie auf. <a href="{{.Base}}/hilfe">Wie das genau geht</a>.</p>
+<p class="meta">Hier lädst du Dateien für das Archiv hoch. Ein Sprachmodell schlägt vor, wie sie eingeordnet werden; ein Moderator prüft und nimmt sie auf. <a href="{{.Base}}/hilfe">Wie das genau geht</a>.</p>
 
 <form method="post" action="{{.Base}}/neu" class="newsub">
 	<input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -132,7 +132,7 @@
 <ol class="steps">
 	<li><b>Hochladen.</b> Lege eine neue Einreichung an und zieh die Dateien in das Feld. Große Dateien sind kein Problem: bricht ein Upload ab, geht er beim nächsten Versuch dort weiter, wo er stand – auch am nächsten Tag.</li>
 	<li><b>Beschreiben.</b> Gib der Einreichung einen Titel und beschreibe die Dateien: was ist es, für welchen Rechner, woher stammt es. Je genauer, desto besser passen die Schlagworte.</li>
-	<li><b>Vorschlag ansehen.</b> Sind alle Dateien geladen, sortiert die KI sie nach kurzer Zeit in Gruppen und schlägt für jede Gruppe Schlagworte vor – für welchen Rechner, welche Art (Handbuch, Software, Foto …) –, bei Bedarf auch neue, und für jede Datei eine Beschreibung. Über die Schlagworte findet man die Dateien später im Archiv. Du siehst auch, ob es eine Datei im Archiv schon gibt. Die Beschreibungen kannst du für die ganze Gruppe übernehmen. Siehst du die Schlagworte anders, schreib es den Moderatoren in die Anmerkung.</li>
+	<li><b>Vorschlag ansehen.</b> Sind alle Dateien geladen, sortiert ein Sprachmodell sie nach kurzer Zeit in Gruppen und schlägt für jede Gruppe Schlagworte vor – für welchen Rechner, welche Art (Handbuch, Software, Foto …) –, bei Bedarf auch neue, und für jede Datei eine Beschreibung. Über die Schlagworte findet man die Dateien später im Archiv. Du siehst auch, ob es eine Datei im Archiv schon gibt. Die Beschreibungen kannst du für die ganze Gruppe übernehmen. Siehst du die Schlagworte anders, schreib es den Moderatoren in die Anmerkung.</li>
 	<li><b>Einreichen.</b> Dann geht die Einreichung an die Moderatoren. {{block "submit-help-notify" .}}Auf der Seite der Einreichung siehst du, wenn sie aufgenommen ist oder es eine Rückfrage gibt.{{end}}</li>
 </ol>
 <h2>Gut zu wissen</h2>

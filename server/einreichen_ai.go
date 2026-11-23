@@ -2,7 +2,6 @@ package archiv
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,33 +10,22 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/anthropics/anthropic-sdk-go/v2"
-	"github.com/anthropics/anthropic-sdk-go/v2/option"
 )
 
-// AI asks Claude which tags the files of a submission get. It only ever
-// suggests: the answers are stored and shown, nothing is tagged because of
-// them.
+// AI asks the language model (llm.go) which tags the files of a submission
+// get. It only ever suggests: the answers are stored and shown, nothing is
+// tagged because of them.
 type AI struct {
-	a      *App
-	client *anthropic.Client
+	a   *App
+	llm LLMProvider
 }
 
-func newAI(a *App) *AI {
-	ai := &AI{a: a}
-	key, err := os.ReadFile(a.cfg.APIKeyFile)
-	if err != nil || strings.TrimSpace(string(key)) == "" {
-		return ai
-	}
-	c := anthropic.NewClient(option.WithAPIKey(strings.TrimSpace(string(key))),
-		option.WithRequestTimeout(15*time.Minute), option.WithMaxRetries(3))
-	ai.client = &c
-	return ai
+func newAI(a *App) (*AI, error) {
+	llm, err := newLLM(a.cfg)
+	return &AI{a: a, llm: llm}, err
 }
 
-func (ai *AI) enabled() bool { return ai.client != nil }
+func (ai *AI) enabled() bool { return ai.llm != nil }
 
 // Analysis is the classification of a whole submission: the files sorted
 // into groups that share their tags.
@@ -205,8 +193,8 @@ func (ai *AI) describeFiles(s *Submission, files []*File, textLimit int) string 
 	return sb.String()
 }
 
-func (ai *AI) images(files []*File, max int) []anthropic.ContentBlockParamUnion {
-	var out []anthropic.ContentBlockParamUnion
+func (ai *AI) images(files []*File, max int) []LLMPart {
+	var out []LLMPart
 	for _, f := range files {
 		if len(out) >= 2*max {
 			break
@@ -218,18 +206,13 @@ func (ai *AI) images(files []*File, max int) []anthropic.ContentBlockParamUnion 
 		if err != nil || len(b) > 4<<20 {
 			continue
 		}
-		out = append(out, anthropic.NewTextBlock("Erste Seite bzw. Bild von "+f.Name+":"),
-			anthropic.NewImageBlockBase64("image/jpeg", base64.StdEncoding.EncodeToString(b)))
+		out = append(out, LLMPart{Text: "Erste Seite bzw. Bild von " + f.Name + ":"}, LLMPart{JPEG: b})
 	}
 	return out
 }
 
-func toolParam(name, descr string, props map[string]any, required ...string) anthropic.ToolUnionParam {
-	return anthropic.ToolUnionParam{OfTool: &anthropic.ToolParam{
-		Name:        name,
-		Description: anthropic.String(descr),
-		InputSchema: anthropic.ToolInputSchemaParam{Properties: props, Required: required},
-	}}
+func toolParam(name, descr string, props map[string]any, required ...string) LLMTool {
+	return LLMTool{Name: name, Description: descr, Params: props, Required: required}
 }
 
 // ----------------------------------------------------------------- requests
@@ -269,7 +252,7 @@ const maxRounds = 16
 // and validates the answer.
 func (ai *AI) ask(ctx context.Context, s *Submission, files []*File, final bool) (*Analysis, error) {
 	if !ai.enabled() {
-		return nil, errors.New("KI nicht eingerichtet")
+		return nil, errors.New("kein Sprachmodell eingerichtet")
 	}
 	textLimit := 4000
 	switch {
@@ -282,98 +265,35 @@ func (ai *AI) ask(ctx context.Context, s *Submission, files []*File, final bool)
 	if final {
 		task = "Schlage die Schlagworte für die Dateien dieser Einreichung vor, abschließend für die Moderation. Fasse in \"summary\" in zwei, drei Sätzen zusammen, was eingereicht wurde."
 	}
-	user := []anthropic.ContentBlockParamUnion{
-		anthropic.NewTextBlock(ai.vocabulary()),
-		anthropic.NewTextBlock(ai.describeFiles(s, files, textLimit)),
-	}
+	user := []LLMPart{{Text: ai.vocabulary()}, {Text: ai.describeFiles(s, files, textLimit)}}
 	user = append(user, ai.images(files, 4)...)
-	user = append(user, anthropic.NewTextBlock(task))
+	user = append(user, LLMPart{Text: task})
 
-	params := anthropic.MessageNewParams{
-		Model:     anthropic.Model(ai.a.cfg.Model),
+	text, model, err := ai.run(ctx, &LLMTask{
+		Label:     fmt.Sprintf("submission %d (%d files, final=%v)", s.ID, len(files), final),
+		System:    strings.ReplaceAll(promptText(systemPrompt), "{kinds}", strings.Join(ai.kinds(), ", ")),
+		User:      user,
+		Schema:    ai.schema(),
+		Tools:     classifyTools,
+		RunTool:   ai.a.runClassifyTool,
 		MaxTokens: 64000,
-		System: []anthropic.TextBlockParam{{
-			Text:         strings.ReplaceAll(promptText(systemPrompt), "{kinds}", strings.Join(ai.kinds(), ", ")),
-			CacheControl: anthropic.NewCacheControlEphemeralParam(),
-		}},
-		Tools: classifyTools,
-		OutputConfig: anthropic.OutputConfigParam{
-			Effort: anthropic.OutputConfigEffortHigh,
-			Format: anthropic.JSONOutputFormatParam{Schema: ai.schema()},
+		Effort:    "high",
+		MaxRounds: maxRounds,
+		Check: func(text string) string {
+			_, problems := ai.validate(text, files, "")
+			return strings.Join(problems, "; ")
 		},
-		// the conversation grows with every tool round; cache it as it goes
-		CacheControl: anthropic.NewCacheControlEphemeralParam(),
-		Messages:     []anthropic.MessageParam{anthropic.NewUserMessage(user...)},
-	}
-	var lastErr error
-	tools, retries := 0, 0
-	for round := 0; ; round++ {
-		if round >= maxRounds-1 {
-			params.ToolChoice = anthropic.ToolChoiceUnionParam{OfNone: &anthropic.ToolChoiceNoneParam{}}
-		}
-		resp, err := ai.send(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		logf("ai: submission %d, %d files, final=%v, round %d: in %d (cache read %d, write %d), out %d",
-			s.ID, len(files), final, round, resp.Usage.InputTokens, resp.Usage.CacheReadInputTokens,
-			resp.Usage.CacheCreationInputTokens, resp.Usage.OutputTokens)
-		switch resp.StopReason {
-		case anthropic.StopReasonRefusal:
-			return nil, errors.New("die KI hat die Anfrage abgelehnt")
-		case anthropic.StopReasonMaxTokens:
-			return nil, errors.New("die Antwort der KI war zu lang")
-		}
-		params.Messages = append(params.Messages, resp.ToParam())
-
-		var text string
-		var results []anthropic.ContentBlockParamUnion
-		for _, b := range resp.Content {
-			switch v := b.AsAny().(type) {
-			case anthropic.TextBlock:
-				text += v.Text
-			case anthropic.ToolUseBlock:
-				out, isErr := ai.a.runClassifyTool(v.Name, json.RawMessage(v.JSON.Input.Raw()))
-				results = append(results, anthropic.NewToolResultBlock(v.ID, out, isErr))
-				tools++
-			}
-		}
-		if resp.StopReason == anthropic.StopReasonToolUse {
-			params.Messages = append(params.Messages, anthropic.NewUserMessage(results...))
-			continue
-		}
-
-		an, problems := ai.validate(text, files, string(resp.Model))
-		if len(problems) == 0 {
-			logf("ai: submission %d: %d groups after %d tool calls", s.ID, countGroups(an), tools)
-			return an, nil
-		}
-		lastErr = errors.New(strings.Join(problems, "; "))
-		if retries++; retries > 2 || round >= maxRounds-1 {
-			return nil, lastErr
-		}
-		// tell the model what was wrong and let it try again
-		params.Messages = append(params.Messages, anthropic.NewUserMessage(anthropic.NewTextBlock(
-			"Diese Angaben sind ungültig: "+lastErr.Error()+
-				". Verwende nur Schlagworte, die es gibt (oder setze new_machine für einen neuen Rechner unter einem vorhandenen), nimm jede Datei genau einmal auf und antworte noch einmal vollständig.")))
-	}
-}
-
-// send streams one request, so long answers are not cut off by a timeout.
-func (ai *AI) send(ctx context.Context, params anthropic.MessageNewParams) (*anthropic.Message, error) {
-	stream := ai.client.Messages.NewStreaming(ctx, params,
-		option.WithHeaderAdd("anthropic-beta", "server-side-fallback-2026-07-01"),
-		option.WithJSONSet("fallbacks", "default"))
-	var msg anthropic.Message
-	for stream.Next() {
-		if err := msg.Accumulate(stream.Current()); err != nil {
-			return nil, err
-		}
-	}
-	if err := stream.Err(); err != nil {
+		Feedback: func(problem string) string {
+			return "Diese Angaben sind ungültig: " + problem +
+				". Verwende nur Schlagworte, die es gibt (oder setze new_machine für einen neuen Rechner unter einem vorhandenen), nimm jede Datei genau einmal auf und antworte noch einmal vollständig."
+		},
+	})
+	if err != nil {
 		return nil, err
 	}
-	return &msg, nil
+	an, _ := ai.validate(text, files, model)
+	logf("llm: submission %d: %d groups", s.ID, countGroups(an))
+	return an, nil
 }
 
 func countGroups(an *Analysis) int {

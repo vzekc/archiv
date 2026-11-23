@@ -47,6 +47,10 @@ func (a *App) routes() http.Handler {
 
 	page("GET /moderation/import", a.mod(a.importReport))
 
+	a.accountRoutes(mux)
+	if a.mailbox != nil {
+		page("GET /nachrichten", a.inboxPage)
+	}
 	for _, e := range a.exts {
 		if rp, ok := e.(RouteProvider); ok {
 			rp.Routes(extRouter{a: a, mux: mux})
@@ -119,7 +123,7 @@ func (a *App) render(w http.ResponseWriter, r *http.Request, name, title string,
 
 var notices = map[string]string{
 	"gespeichert":    "Gespeichert.",
-	"eingereicht":    "Eingereicht. Die KI ordnet die Einreichung jetzt ein, danach geht sie an die Moderatoren.",
+	"eingereicht":    "Eingereicht. Das Sprachmodell ordnet die Einreichung jetzt ein, danach geht sie an die Moderatoren.",
 	"geloescht":      "Der Entwurf ist gelöscht.",
 	"entfernt":       "Die Datei ist entfernt.",
 	"doubletten":     "Die Dateien, die es schon gibt, sind entfernt.",
@@ -130,7 +134,7 @@ var notices = map[string]string{
 	"gefragt":        "Die Rückfrage ist an den Einreicher gegangen.",
 	"abgelehnt":      "Die Einreichung ist abgelehnt.",
 	"aufgenommen":    "Die Aufnahme läuft. Die Dateien sind in wenigen Minuten im Archiv.",
-	"analyse":        "Die KI ordnet die Einreichung neu ein.",
+	"analyse":        "Das Sprachmodell ordnet die Einreichung neu ein.",
 	"beantwortet":    "Danke! Deine Antwort ist bei den Moderatoren.",
 	"vorschlag":      "Vorschlag übernommen.",
 	"kontingent":     "Kontingent gespeichert.",

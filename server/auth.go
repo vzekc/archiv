@@ -11,17 +11,32 @@ import (
 	"sync"
 )
 
-// User is the person behind a request. With auth = header, a proxy in front
-// (Apache with mod_auth_openidc, say) has checked the login and passes the
-// user's id, name and groups as request headers; the service then listens on
-// localhost only, and the proxy removes these headers from what the browser
-// sends. With auth = single there is no login: every request is the one user,
-// who moderates and edits.
+// User is the person behind a request.
+//
+// With auth = local the archive keeps the accounts itself (accounts.go):
+// people log in with name and password, and their role decides what they
+// may do. With open_read, visitors without an account read like a reader.
+//
+// With auth = header, a proxy in front (Apache with mod_auth_openidc, say)
+// has checked the login and passes the user's id, name, email and groups as
+// request headers; the service then listens on localhost only, and the
+// proxy removes these headers from what the browser sends. Everyone logged
+// in may submit; the moderator group moderates.
 type User struct {
 	ID        string
 	Groups    []string
 	Moderator bool
+	Role      string // auth = local: reader, submitter or archivar
+	Reader    bool   // may only read: the role reader, or a visitor without an account
+	Anonymous bool   // a visitor without an account
 }
+
+// Roles of auth = local.
+const (
+	RoleReader    = "reader"
+	RoleSubmitter = "submitter"
+	RoleArchivar  = "archivar"
+)
 
 func (u *User) inGroup(g string) bool {
 	if u == nil {
@@ -39,9 +54,11 @@ type ctxKey int
 
 const userKey ctxKey = 0
 
+// userFrom is the user of a request, or nil when there is none.
 func (a *App) userFrom(r *http.Request) *User {
 	var id, groups string
-	if a.cfg.DevUser != "" {
+	switch {
+	case a.cfg.DevUser != "":
 		parts := strings.SplitN(a.cfg.DevUser, ":", 3)
 		id = parts[0]
 		if len(parts) > 1 && parts[1] != "" {
@@ -58,15 +75,13 @@ func (a *App) userFrom(r *http.Request) *User {
 				groups = p[1]
 			}
 		}
-	} else if a.cfg.Auth == "single" {
-		id = "1"
-		a.names.remember(id, a.cfg.SingleUser)
-		groups = a.cfg.ModeratorGrp
-	} else {
+	case a.cfg.Auth == "local":
+		return a.accounts.fromSession(r)
+	default:
 		id = r.Header.Get(a.cfg.UserHeader)
 		groups = r.Header.Get(a.cfg.GroupsHeader)
-		if a.cfg.NameHeader != "" {
-			if name := strings.TrimSpace(r.Header.Get(a.cfg.NameHeader)); name != "" && id != "" {
+		if id != "" {
+			if name := strings.TrimSpace(r.Header.Get(a.cfg.NameHeader)); a.cfg.NameHeader != "" && name != "" {
 				a.names.remember(id, name)
 			}
 		}
@@ -83,18 +98,74 @@ func (a *App) userFrom(r *http.Request) *User {
 			}
 		}
 	}
+	if a.cfg.Auth == "header" && a.cfg.DevUser == "" {
+		email := ""
+		if a.cfg.EmailHeader != "" {
+			email = strings.TrimSpace(r.Header.Get(a.cfg.EmailHeader))
+		}
+		a.people.seen(u.ID, email, u.Moderator)
+	}
 	return u
 }
 
+// openPaths are reachable without logging in: the login itself, setting a
+// password from a link, the first setup, and what these pages need.
+func (a *App) openPath(p string) bool {
+	for _, pre := range []string{"/anmelden", "/abmelden", "/passwort/", "/einrichten", "/assets/", a.cfg.BasePath + "/static/", "/favicon.ico", "/robots.txt"} {
+		if p == pre || strings.HasPrefix(p, pre) {
+			return true
+		}
+	}
+	return false
+}
+
+// writerPath tells whether a GET of p is for those who may write: the
+// submissions, moderation, the archive browser, messages, user management.
+func (a *App) writerPath(p string) bool {
+	for _, pre := range []string{a.cfg.BasePath + "/", "/moderation", "/browser", "/api/", "/benutzer", "/nachrichten"} {
+		if p == strings.TrimSuffix(pre, "/") || strings.HasPrefix(p, pre) {
+			return true
+		}
+	}
+	return false
+}
+
+// withUser finds the user of each request and keeps readers to reading.
 func (a *App) withUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u := a.userFrom(r)
-		if u == nil {
-			http.Error(w, "Nicht angemeldet.", http.StatusUnauthorized)
+		local := a.cfg.Auth == "local" && a.cfg.DevUser == ""
+		if local && a.accounts.needsSetup() && !a.openPath(r.URL.Path) {
+			a.setupNotice(w, r)
 			return
 		}
-		a.names.want(u.ID)
-		a.noteGroups(u)
+		if u == nil {
+			if !local {
+				http.Error(w, "Nicht angemeldet.", http.StatusUnauthorized)
+				return
+			}
+			u = &User{Reader: true, Anonymous: true}
+		}
+		read := r.Method == http.MethodGet || r.Method == http.MethodHead
+		switch {
+		case a.openPath(r.URL.Path):
+		case u.Anonymous && (!a.cfg.OpenRead || !read || a.writerPath(r.URL.Path)):
+			if read {
+				http.Redirect(w, r, "/anmelden?weiter="+url.QueryEscape(r.URL.RequestURI()), http.StatusSeeOther)
+			} else {
+				http.Error(w, "Nicht angemeldet.", http.StatusUnauthorized)
+			}
+			return
+		case u.Reader && !u.Anonymous && r.URL.Path == "/konto":
+		case u.Reader && (!read || a.writerPath(r.URL.Path)):
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			http.Error(w, "Dafür reicht deine Rolle nicht: Leser können lesen, aber nichts einreichen oder ändern.", http.StatusForbidden)
+			return
+		}
+		if u.ID != "" {
+			a.names.want(u.ID)
+			a.noteGroups(u)
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), userKey, u)))
 	})
 }

@@ -79,6 +79,16 @@ a:hover { text-decoration-thickness: 2px; }
 
 .brand .tag { color: var(--ink-faint); font-size: 0.9rem; }
 
+.who { margin-left: auto; font-size: 0.9rem; color: var(--ink-soft); }
+.who form.logout { display: inline; margin: 0; }
+.who form.logout button { font: inherit; color: var(--link); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.who .unread { display: inline-block; min-width: 1.3em; padding: 0 0.3em; border-radius: 0.65em; background: var(--accent); color: var(--panel); font-size: 0.8rem; text-align: center; }
+form.narrow { max-width: 28rem; }
+.msg { border-bottom: 1px solid var(--line); padding: 0.7rem 0.2rem; }
+.msg.unread { border-left: 3px solid var(--accent); padding-left: 0.7rem; }
+.msg .mb p { margin: 0.3rem 0; }
+input.link-copy { width: 100%; font-family: ui-monospace, monospace; padding: 0.4rem; }
+
 /* ---------- search box ---------- */
 
 form.q { display: flex; flex-wrap: wrap; gap: 0.5rem; }

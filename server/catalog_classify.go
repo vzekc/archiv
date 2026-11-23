@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
-
-	"github.com/anthropics/anthropic-sdk-go/v2"
 )
 
 // classify tags the existing archive: items without a machine or kind tag
@@ -74,7 +72,7 @@ func classifyCmd(args []string) {
 	}
 	if *titles {
 		if !a.ai.enabled() {
-			log.Fatal("classify: no API key (api_key_file)")
+			log.Fatal("classify: no language model (llm)")
 		}
 		n, err := a.proposeTitles(ctx, run, *folder, max(*limit, 1)*classifyBatch)
 		if err != nil {
@@ -106,7 +104,7 @@ func classifyCmd(args []string) {
 		return
 	}
 	if !a.ai.enabled() {
-		log.Fatal("classify: no API key (api_key_file)")
+		log.Fatal("classify: no language model (llm)")
 	}
 	folders, err := a.foldersToClassify(*folder, *limit)
 	if err != nil {
@@ -220,7 +218,7 @@ func (a *App) classifySchema() map[string]any {
 	}
 }
 
-var classifyTools = []anthropic.ToolUnionParam{
+var classifyTools = []LLMTool{
 	toolParam("list_tag", "Die Schlagworte unter einem Schlagwort, mit der Zahl ihrer Objekte. Ohne path: die oberste Ebene der Facette.",
 		map[string]any{"facet": map[string]any{"type": "string", "enum": []string{"machine", "system", "publication"}},
 			"path": map[string]any{"type": "string", "description": "z. B. \"DEC > PDP-11\""}}, "facet"),
@@ -366,53 +364,28 @@ func (a *App) classifyFolder(ctx context.Context, run, folder string) (int, erro
 		folder, a.cat.folderLabel(folder), a.folderDescr(folder), strings.Join(top, ", "))
 	itemsJSON, _ := json.MarshalIndent(items, "", " ")
 	system := strings.ReplaceAll(promptText(classifyPrompt), "{kinds}", strings.Join(kinds, ", "))
-	params := anthropic.MessageNewParams{
-		Model:     anthropic.Model(a.cfg.Model),
-		MaxTokens: 32000,
-		System:    []anthropic.TextBlockParam{{Text: system, CacheControl: anthropic.NewCacheControlEphemeralParam()}},
-		Tools:     classifyTools,
-		OutputConfig: anthropic.OutputConfigParam{
-			Effort: anthropic.OutputConfigEffortHigh,
-			Format: anthropic.JSONOutputFormatParam{Schema: a.classifySchema()},
-		},
-		CacheControl: anthropic.NewCacheControlEphemeralParam(),
-		Messages: []anthropic.MessageParam{anthropic.NewUserMessage(
-			anthropic.NewTextBlock(ctxText+string(itemsJSON)),
-			anthropic.NewTextBlock("Schlage für jedes Objekt die Schlagworte vor."))},
-	}
 	var ans classifyAnswer
-	for round := 0; ; round++ {
-		if round >= maxRounds-1 {
-			params.ToolChoice = anthropic.ToolChoiceUnionParam{OfNone: &anthropic.ToolChoiceNoneParam{}}
-		}
-		resp, err := a.ai.send(ctx, params)
-		if err != nil {
-			return 0, err
-		}
-		if resp.StopReason == anthropic.StopReasonRefusal || resp.StopReason == anthropic.StopReasonMaxTokens {
-			return 0, fmt.Errorf("stop reason %s", resp.StopReason)
-		}
-		params.Messages = append(params.Messages, resp.ToParam())
-		var text string
-		var results []anthropic.ContentBlockParamUnion
-		for _, b := range resp.Content {
-			switch v := b.AsAny().(type) {
-			case anthropic.TextBlock:
-				text += v.Text
-			case anthropic.ToolUseBlock:
-				out, isErr := a.runClassifyTool(v.Name, json.RawMessage(v.JSON.Input.Raw()))
-				results = append(results, anthropic.NewToolResultBlock(v.ID, out, isErr))
+	text, _, err := a.ai.run(ctx, &LLMTask{
+		Label:     "classify " + folder,
+		System:    system,
+		User:      []LLMPart{{Text: ctxText + string(itemsJSON)}, {Text: "Schlage für jedes Objekt die Schlagworte vor."}},
+		Schema:    a.classifySchema(),
+		Tools:     classifyTools,
+		RunTool:   a.runClassifyTool,
+		MaxTokens: 32000,
+		Effort:    "high",
+		MaxRounds: maxRounds,
+		Check: func(text string) string {
+			if err := json.Unmarshal([]byte(text), &classifyAnswer{}); err != nil {
+				return "Die Antwort ist kein gültiges JSON: " + err.Error()
 			}
-		}
-		if resp.StopReason == anthropic.StopReasonToolUse {
-			params.Messages = append(params.Messages, anthropic.NewUserMessage(results...))
-			continue
-		}
-		if err := json.Unmarshal([]byte(text), &ans); err != nil {
-			return 0, fmt.Errorf("answer: %v", err)
-		}
-		break
+			return ""
+		},
+	})
+	if err != nil {
+		return 0, err
 	}
+	json.Unmarshal([]byte(text), &ans)
 	changes := a.classifyChanges(run, items, ans)
 	if len(changes) == 0 {
 		return 0, nil
@@ -455,7 +428,7 @@ func (a *App) classifyChanges(run string, items []classifyItem, ans classifyAnsw
 			continue
 		}
 		target := targetOf("item", x.ID)
-		reason := fmt.Sprintf("KI, Sicherheit %.0f %%", x.Confidence*100)
+		reason := fmt.Sprintf("Sprachmodell, Sicherheit %.0f %%", x.Confidence*100)
 		if x.Note != "" {
 			reason += ": " + x.Note
 		}

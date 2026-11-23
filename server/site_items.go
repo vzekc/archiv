@@ -332,8 +332,8 @@ func (a *App) itemZip(w http.ResponseWriter, r *http.Request, it *ItemView) {
 			"Die Dateien dieses Objekts sind zusammen "+humanSize(it.Bytes)+" groß; bitte einzeln herunterladen.", "")
 		return
 	}
-	user := "anonymous"
-	if u := currentUser(r); u != nil {
+	user := "anonymous:" + clientIP(r)
+	if u := currentUser(r); u != nil && u.ID != "" {
 		user = u.ID
 	}
 	release, status, msg := zips.take(user)

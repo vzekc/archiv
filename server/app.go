@@ -12,7 +12,8 @@
 //	import   build the catalog from the archive (the first sync)
 //	sync     bring the catalog in line with the archive
 //	export-descriptions <dir>   write the catalog as descriptions files
-//	classify  propose tags for the untagged items (AI), or relations and merges
+//	classify  propose tags for the untagged items (language model), or relations and merges
+//	user add|link|list   accounts of an archive with auth = local
 package archiv
 
 import (
@@ -34,18 +35,22 @@ import (
 )
 
 type App struct {
-	cfg     *Config
-	db      *DB
-	cat     *Catalog
-	events  *eventHub
-	pagesDB pagesStore
-	arch    *Archive
-	names   *Names
-	tmpl    *template.Template
-	tus     *handler.Handler
-	exts    []Extension
-	ai      *AI
-	wake    chan struct{}
+	cfg      *Config
+	db       *DB
+	cat      *Catalog
+	events   *eventHub
+	pagesDB  pagesStore
+	arch     *Archive
+	names    *Names
+	tmpl     *template.Template
+	tus      *handler.Handler
+	exts     []Extension
+	accounts *Accounts
+	people   *People
+	mail     *Mailer
+	mailbox  *mailbox // the built-in handling of submissions, when no extension does it
+	ai       *AI
+	wake     chan struct{}
 }
 
 func logf(format string, args ...any) { log.Printf(format, args...) }
@@ -60,6 +65,7 @@ var commands = map[string]func(args []string){
 	"classify":            classifyCmd,
 	"split-item":          splitItemCmd,
 	"merge-gone":          mergeGoneCmd,
+	"user":                userCmd,
 }
 
 // Main runs the command named on the command line with the given
@@ -142,8 +148,26 @@ func newAppWith(cfg *Config, exts []Extension) (*App, error) {
 		return nil, err
 	}
 	a := &App{cfg: cfg, db: db, cat: cat, events: newEventHub(), arch: &Archive{cfg: cfg}, names: newNames(db),
-		exts: exts, wake: make(chan struct{}, 1)}
-	a.ai = newAI(a)
+		wake: make(chan struct{}, 1)}
+	a.people = newPeople(db)
+	a.mail = &Mailer{a: a}
+	if a.accounts, err = newAccounts(a); err != nil {
+		return nil, err
+	}
+	a.exts = append([]Extension{}, exts...)
+	notified := false
+	for _, e := range exts {
+		if _, ok := e.(Notifier); ok {
+			notified = true
+		}
+	}
+	if !notified {
+		a.mailbox = &mailbox{}
+		a.exts = append(a.exts, a.mailbox)
+	}
+	if a.ai, err = newAI(a); err != nil {
+		return nil, err
+	}
 	for _, e := range a.exts {
 		if err := e.Init(a); err != nil {
 			return nil, err

@@ -37,7 +37,7 @@
 	<span class="dup"><span id="dupcount">{{plural .Dups "Datei gibt" "Dateien gibt"}}</span> es schon.</span>
 	<button class="small danger">Alle Doubletten entfernen</button>
 </form>{{end}}
-<p class="note fresh" id="fresh" hidden>Neue Vorschläge der KI sind da. <button type="button" class="small" id="reload">Seite neu laden</button></p>
+<p class="note fresh" id="fresh" hidden>Neue Vorschläge des Sprachmodells sind da. <button type="button" class="small" id="reload">Seite neu laden</button></p>
 <div class="files">
 {{range .Groups}}{{$g := .}}
 <section class="group">
@@ -67,7 +67,7 @@
 			{{if $v.CanEdit}}
 			<input class="fdesc" name="desc_{{$f.ID}}" form="form" value="{{$f.Description}}" aria-label="Beschreibung von {{$f.Name}}"
 				placeholder="{{with .Sugg}}{{.Description}}{{else}}Beschreibung dieser Datei{{end}}"{{with .Sugg}}{{if .Description}} data-sugg="{{.Description}}"{{end}}{{end}}>
-			{{if and (not $f.Description) .Sugg}}{{if .Sugg.Description}}<div class="hint">Grau: Vorschlag der KI, er gilt, wenn du nichts änderst. Zum Ändern ins Feld klicken.</div>{{end}}{{end}}
+			{{if and (not $f.Description) .Sugg}}{{if .Sugg.Description}}<div class="hint">Grau: Vorschlag des Sprachmodells, er gilt, wenn du nichts änderst. Zum Ändern ins Feld klicken.</div>{{end}}{{end}}
 			{{else if $f.Description}}<div class="fdescr">{{$f.Description}}</div>{{end}}
 			<div class="finfo" id="fi{{$f.ID}}">{{template "fileinfo" (dict "V" $v "FV" . "Base" $.Base "CSRF" $.CSRF)}}</div>
 			{{if $v.CanEdit}}
@@ -163,15 +163,15 @@
 	{{end}}
 {{end}}
 
-{{with $v.Final}}<div class="note"><span class="ai">KI</span> {{itemlinks .Summary}}{{if .NotesForModerator}}<div class="modnote">{{itemlinks .NotesForModerator}}</div>{{end}}</div>{{end}}
-{{if eq $s.AnalysisState "failed"}}<p class="note warn">Die KI-Einordnung ist fehlgeschlagen; sie wird alle 30 Minuten wiederholt.</p>{{end}}
+{{with $v.Final}}<div class="note"><span class="ai">Sprachmodell</span> {{itemlinks .Summary}}{{if .NotesForModerator}}<div class="modnote">{{itemlinks .NotesForModerator}}</div>{{end}}</div>{{end}}
+{{if eq $s.AnalysisState "failed"}}<p class="note warn">Die Einordnung durch das Sprachmodell ist fehlgeschlagen; sie wird alle 30 Minuten wiederholt.</p>{{end}}
 {{if $s.OwnerNote}}<p class="note"><b>Anmerkung des Einreichers:</b> {{$s.OwnerNote}}</p>{{end}}
 
 {{if $v.CanDecide}}
 <form method="post" action="{{.Base}}/e/{{$s.ID}}/aufnehmen" class="decide">
 	<input type="hidden" name="csrf" value="{{.CSRF}}">
 	<h3>Dateien</h3>
-	<p class="meta">Hier legst du fest, was ins Archiv kommt: Schlagworte je Gruppe, Beschreibung je Datei (vorbelegt mit dem Vorschlag der KI, frei änderbar) und ob Archive entpackt werden. Die Einzelheiten zu jeder Datei stehen darunter.</p>
+	<p class="meta">Hier legst du fest, was ins Archiv kommt: Schlagworte je Gruppe, Beschreibung je Datei (vorbelegt mit dem Vorschlag des Sprachmodells, frei änderbar) und ob Archive entpackt werden. Die Einzelheiten zu jeder Datei stehen darunter.</p>
 	{{range $v.Groups}}{{$g := .}}
 	<fieldset class="dgroup" id="g{{.N}}">
 		<legend>{{plural (len .Files) "Datei" "Dateien"}}{{with .Sugg}}{{with .Group}} · {{.}}{{end}}{{end}}</legend>
@@ -221,7 +221,7 @@
 {{end}}
 {{if or (eq $s.State "moderation") (eq $s.State "failed")}}
 <form method="post" action="{{.Base}}/e/{{$s.ID}}/analysieren" class="inline">
-	<input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet small">KI neu einordnen lassen</button></form>
+	<input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet small">Neu einordnen lassen</button></form>
 {{end}}
 
 <h3>Kommentar</h3>
