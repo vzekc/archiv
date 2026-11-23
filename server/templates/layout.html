@@ -1,0 +1,147 @@
+{{define "head"}}<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{.Title}} – Einreichungen – {{site}}</title>
+<link rel="stylesheet" href="/assets/oc.css">
+<link rel="stylesheet" href="{{.Base}}/static/uppy.min.css?v={{v}}">
+<link rel="stylesheet" href="{{.Base}}/static/einreichen.css?v={{v}}">
+<link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<div class="brand">
+			<a class="home" href="/">{{site}}</a>
+			{{with tagline}}<span class="tag">{{.}}</span>{{end}}
+		</div>
+		<nav class="ein-nav">
+			<a href="{{.Base}}/">Meine Einreichungen</a>
+			<a href="{{.Base}}/liste">Eingereicht</a>
+			{{if .User.Moderator}}<a href="{{.Base}}/moderation">Moderation</a>{{end}}
+			<a href="{{.Base}}/hilfe">Hilfe</a>
+			<span class="who">{{.UserName}}</span>
+		</nav>
+	</div>
+</header>
+<div class="wrap">
+{{if .Notice}}<p class="note ok">{{.Notice}}</p>{{end}}
+{{end}}
+
+{{define "foot"}}
+	<footer>
+		<a href="/">Archiv</a> · <a href="{{.Base}}/hilfe">Hilfe zum Einreichen</a>
+	</footer>
+</div>
+</body>
+</html>
+{{end}}
+
+{{define "error"}}{{template "head" .}}
+<h1>Das ging nicht</h1>
+<p class="note warn">{{.Data}}</p>
+<p><a href="javascript:history.back()">Zurück</a> · <a href="{{.Base}}/">Meine Einreichungen</a></p>
+{{template "foot" .}}{{end}}
+
+{{define "subrows"}}
+<div class="listing">
+{{range .}}
+	<div class="row">
+		<div class="nm"><a href="{{url "/e/" .S.ID}}">{{if .S.Title}}{{.S.Title}}{{else}}(ohne Titel){{end}}</a>
+			<span class="st st-{{.S.State}}">{{state .S.State}}</span></div>
+		<div class="sz">{{plural .NFiles "Datei" "Dateien"}} · {{size .Bytes}}</div>
+		<div class="pt">{{name .S.Owner}} · {{if .S.Submitted.Valid}}eingereicht {{date .S.Submitted.Int64}}{{else}}angelegt {{date .S.Created}}{{end}}{{if .Claimer}} · bearbeitet von {{.Claimer}}{{end}}</div>
+	</div>
+{{else}}
+	<p class="meta">Keine.</p>
+{{end}}
+</div>
+{{end}}
+
+{{define "home"}}{{template "head" .}}
+<h1>Einreichungen</h1>
+<p class="meta">Hier lädst du Dateien für das Archiv hoch. Eine KI schlägt vor, wie sie eingeordnet werden; ein Moderator prüft und nimmt sie auf. <a href="{{.Base}}/hilfe">Wie das genau geht</a>.</p>
+
+<form method="post" action="{{.Base}}/neu" class="newsub">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<input type="text" name="title" placeholder="Titel, z. B. „Kaypro II Handbücher“" aria-label="Titel" maxlength="200">
+	<button type="submit">Neue Einreichung</button>
+</form>
+
+{{with .Data}}
+{{if $.User.Moderator}}{{if .Open}}<p class="note">{{plural .Open "Einreichung wartet" "Einreichungen warten"}} in der <a href="{{$.Base}}/moderation">Moderation</a>.</p>{{end}}{{end}}
+<h2>Meine Einreichungen</h2>
+{{template "subrows" .Mine}}
+<p class="meta">Dein Kontingent: {{size .Quota.MaxFile}} je Datei, {{size .Quota.MaxSubmission}} je Einreichung, {{size .Quota.MaxPending}} insgesamt offen (belegt: {{size .Pending}}).{{if .Quota.Custom}} Für dich erhöht.{{end}}</p>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "list"}}{{template "head" .}}
+<h1>Eingereicht</h1>
+<p class="meta">Alles, was Mitglieder eingereicht haben, mit dem aktuellen Stand. So sieht jeder, was schon unterwegs ist, und nichts wird doppelt gescannt.</p>
+{{template "subrows" .Data}}
+{{template "foot" .}}{{end}}
+
+{{define "moderation"}}{{template "head" .}}
+<h1>Moderation</h1>
+{{with .Data}}
+<h2>Warten auf Prüfung</h2>
+{{template "subrows" .Open}}
+<h2>Rückfrage offen</h2>
+{{template "subrows" .Question}}
+<h2>Werden eingeordnet</h2>
+{{template "subrows" .Analysing}}
+<h2>Zuletzt entschieden</h2>
+{{template "subrows" .Recent}}
+{{end}}
+<p><a href="{{.Base}}/kontingente">Kontingente der Mitglieder</a></p>
+{{template "foot" .}}{{end}}
+
+{{define "quotas"}}{{template "head" .}}
+<h1>Kontingente</h1>
+{{with .Data}}
+<p class="meta">Standard: {{size .Default.MaxFile}} je Datei, {{size .Default.MaxSubmission}} je Einreichung, {{size .Default.MaxPending}} offen je Mitglied.</p>
+<div class="listing">
+{{range .Rows}}
+	<div class="row">
+		<div class="nm">{{.Name}} <span class="meta">(#{{.Member}})</span></div>
+		<div class="sz">{{gb .Q.MaxFile}} / {{gb .Q.MaxSubmission}} / {{gb .Q.MaxPending}} GB</div>
+		<div class="pt">belegt {{size .Pending}}{{if .Q.Until.Valid}} · bis {{date .Q.Until.Int64}}{{else}} · dauerhaft{{end}} · gesetzt von {{name .Q.SetBy}}</div>
+	</div>
+{{else}}<p class="meta">Niemand hat ein erhöhtes Kontingent.</p>
+{{end}}
+</div>
+<h2>Kontingent setzen</h2>
+<form method="post" action="{{$.Base}}/kontingente" class="grid">
+	<input type="hidden" name="csrf" value="{{$.CSRF}}">
+	<label>Benutzer-ID <input name="member" value="{{.Member}}" required inputmode="numeric"></label>
+	<label>GB je Datei <input name="max_file" value="{{gb .Default.MaxFile}}"></label>
+	<label>GB je Einreichung <input name="max_submission" value="{{gb .Default.MaxSubmission}}"></label>
+	<label>GB offen insgesamt <input name="max_pending" value="{{gb .Default.MaxPending}}"></label>
+	<label>gültig bis (leer = dauerhaft) <input type="date" name="until"></label>
+	<div class="btns"><button type="submit">Speichern</button>
+	<button type="submit" name="reset" value="1" class="quiet">Auf Standard zurücksetzen</button></div>
+</form>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "help"}}{{template "head" .}}
+<h1>So funktioniert das Einreichen</h1>
+<ol class="steps">
+	<li><b>Hochladen.</b> Lege eine neue Einreichung an und zieh die Dateien in das Feld. Große Dateien sind kein Problem: bricht ein Upload ab, geht er beim nächsten Versuch dort weiter, wo er stand – auch am nächsten Tag.</li>
+	<li><b>Beschreiben.</b> Gib der Einreichung einen Titel und beschreibe die Dateien: was ist es, für welchen Rechner, woher stammt es. Je genauer, desto besser passen die Schlagworte.</li>
+	<li><b>Vorschlag ansehen.</b> Sind alle Dateien geladen, sortiert die KI sie nach kurzer Zeit in Gruppen und schlägt für jede Gruppe Schlagworte vor – für welchen Rechner, welche Art (Handbuch, Software, Foto …) –, bei Bedarf auch neue, und für jede Datei eine Beschreibung. Über die Schlagworte findet man die Dateien später im Archiv. Du siehst auch, ob es eine Datei im Archiv schon gibt. Die Beschreibungen kannst du für die ganze Gruppe übernehmen. Siehst du die Schlagworte anders, schreib es den Moderatoren in die Anmerkung.</li>
+	<li><b>Einreichen.</b> Dann geht die Einreichung an die Moderatoren. {{block "submit-help-notify" .}}Auf der Seite der Einreichung siehst du, wenn sie aufgenommen ist oder es eine Rückfrage gibt.{{end}}</li>
+</ol>
+<h2>Gut zu wissen</h2>
+<ul>
+	<li>Bis zum Einreichen ist alles ein Entwurf, den nur du siehst. Du kannst jederzeit unterbrechen.</li>
+	<li>Archive (zip, 7z, rar, tar …) werden bei der Aufnahme entpackt. Disketten-, CD- und ROM-Abbilder bleiben, wie sie sind.</li>
+	<li>Wenn du möchtest, steht in der Beschreibung im Archiv „eingereicht von“ mit deinem Namen.</li>
+	<li>Eingereichte (nicht Entwürfe) sind für alle Angemeldeten unter <a href="{{.Base}}/liste">Eingereicht</a> zu sehen.</li>
+	<li>Für sehr große Sammlungen: frag einen Moderator, er kann dein Kontingent erhöhen.</li>
+	{{block "submit-help-extra" .}}{{end}}
+</ul>
+{{template "foot" .}}{{end}}

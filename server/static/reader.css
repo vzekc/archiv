@@ -1,0 +1,45 @@
+/* The reader: a bar on top, the page below it as wide as the screen. */
+
+body.reader { margin: 0; background: #4a4f55; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d232b; }
+.rbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+	padding: .4rem .7rem; background: #f6f5f1; border-bottom: 1px solid #d8d6cf; }
+.rbar .back { font-size: 1.3rem; text-decoration: none; color: #2b5ba7; padding: 0 .3rem; }
+.rbar .title { flex: 1; min-width: 8rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rbar button { font: inherit; min-width: 2.1rem; height: 2.1rem; border: 1px solid #c9c6bd; border-radius: 6px; background: #fff; cursor: pointer; }
+.rbar button:hover { border-color: #888; }
+.rbar .hitnav, .rbar .pagenav { display: inline-flex; align-items: center; gap: .3rem; }
+.rbar .hitnav { background: #fde68a; border-radius: 8px; padding: .15rem .3rem; }
+.rbar .hitpos { font-size: .85rem; padding: 0 .2rem; }
+.rbar .pageno { width: 4.2rem; font: inherit; padding: .2rem .3rem; border: 1px solid #c9c6bd; border-radius: 6px; }
+.rbar .orig, .rbar .save { color: #2b5ba7; font-size: .9rem; }
+.passage { margin: 0; padding: .45rem .8rem; background: #fff8dc; border-bottom: 1px solid #e8dca8; font-size: .9rem; }
+.passage mark { background: #fde68a; }
+.stage { display: flex; flex-direction: column; align-items: center; padding: .8rem 0 3rem; }
+.page { position: relative; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.35); }
+.page canvas, .page img { display: block; }
+.page [hidden] { display: none; }
+.loading { color: #eee; }
+.loading a { color: #fff; }
+@media (max-width: 40em) {
+	.rbar .title { flex-basis: calc(100% - 3rem); order: -1; }
+	.stage { padding-top: 0; }
+}
+
+/* the text layer of PDF.js: invisible text over the picture, the marks visible */
+.textLayer { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-align: initial; text-size-adjust: none;
+	-webkit-text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; z-index: 2; }
+.textLayer span, .textLayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+.textLayer span.markedContent { top: 0; height: 0; }
+.textLayer mark { color: transparent; background: rgba(250, 180, 0, .45); border-radius: 2px; padding: 0; }
+.textLayer ::selection { background: rgba(0, 90, 255, .25); }
+
+@media (prefers-color-scheme: dark) {
+	body.reader { background: #121212; color: #ece9e3; }
+	.rbar { background: #232320; border-bottom-color: #3a3934; }
+	.rbar .back, .rbar .orig, .rbar .save { color: #7fb2ea; }
+	.rbar button, .rbar .pageno { background: #2a2a27; border-color: #4a4a46; color: inherit; }
+	.rbar button:hover { border-color: #8a857c; }
+	.rbar .hitnav { background: #5c4a16; }
+	.passage { background: #2e2a1c; border-bottom-color: #514828; }
+	.passage mark { background: #6b5716; color: inherit; }
+}

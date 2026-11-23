@@ -1,0 +1,164 @@
+{{define "v-icon"}}<svg class="icon" viewBox="0 0 64 64" aria-hidden="true">{{if eq . "machine"}}<rect x="10" y="12" width="44" height="30" rx="3"/><rect x="16" y="18" width="32" height="18" rx="1"/><path d="M6 52h52l-4-6H10z"/>{{end}}{{if eq . "magazine"}}<path d="M16 8h28l8 8v40H16z"/><path d="M44 8v8h8M22 24h22M22 32h22M22 40h14"/>{{end}}{{if eq . "camera"}}<path d="M8 20h12l4-6h16l4 6h12v30H8z"/><circle cx="32" cy="34" r="9"/>{{end}}{{if eq . "disc"}}<circle cx="32" cy="32" r="24"/><circle cx="32" cy="32" r="6"/><path d="M32 14a18 18 0 0 1 18 18"/>{{end}}{{if eq . "globe"}}<circle cx="32" cy="32" r="24"/><ellipse cx="32" cy="32" rx="10" ry="24"/><path d="M8 32h48M12 20h40M12 44h40"/>{{end}}</svg>{{end}}
+
+{{define "v-card"}}<a class="card k-{{.Kind}}" href="{{.Href}}"{{if eq .Kind "image"}} data-img="{{.File}}"{{end}}{{if .File}} data-file="{{.File}}"{{end}} title="{{.Title}}">
+<span class="pic">{{if .Thumb}}<img src="{{.Thumb}}" alt="" loading="lazy" decoding="async">{{else}}<span class="type">{{.Type}}</span>{{end}}</span>
+<span class="t">{{.Title}}</span>{{if .Sub}}<span class="s">{{.Sub}}</span>{{end}}</a>{{end}}
+
+{{define "v-shelf"}}<section class="shelf">
+<h2>{{if .Href}}<a href="{{.Href}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}{{if .Count}} <span class="n">{{.Count}}</span>{{end}}{{if and .Href (gt .Count (len .Cards))}} <a class="all" href="{{.Href}}">alle&nbsp;→</a>{{end}}</h2>
+<div class="row">{{range .Cards}}{{template "v-card" .}}{{end}}</div>
+</section>{{end}}
+
+{{define "v-view"}}{{$v := .Data}}{{template "site-head" .}}
+<link rel="stylesheet" href="/einreichen/static/archiv.css?v={{v}}">
+<div class="v">
+<div class="vhead">
+<h1>{{$v.Title}} <span class="n">{{num (int64 $v.Total)}} {{if eq $v.Total 1}}Objekt{{else}}Objekte{{end}}</span></h1>
+{{if $v.Chips}}<div class="chips">{{range $v.Chips}}<span class="chip f-{{.Facet}}"><span class="fl">{{.Label}}</span>{{range $i, $c := .Crumbs}}{{if $i}}<span class="sep">›</span>{{end}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{end}}{{if $.Editing}}<a class="ed" href="{{.Edit}}" title="{{if $.CanEdit}}Namen und Beschreibung bearbeiten{{else}}Änderung vorschlagen{{end}}" aria-label="bearbeiten">✎</a>{{end}}<a class="x" href="{{.Remove}}" title="Filter entfernen" aria-label="Filter {{.Label}} entfernen">✕</a></span>{{end}}</div>{{end}}
+</div>
+{{template "v-rows" $v}}
+{{if $v.Tag}}{{if $v.Tag.Descr}}<p class="descr">{{$v.Tag.Descr}}</p>{{end}}{{if $v.Tag.Page}}<div class="page">{{markdown $v.Tag.Page}}</div>{{end}}{{end}}
+{{if $v.Empty}}<p class="note">Hier ist nichts. Einen Filter oben entfernen, um mehr zu sehen.</p>{{end}}
+{{if $v.Shelves}}{{range $v.Shelves}}{{template "v-shelf" .}}{{end}}
+<p class="allgrid"><a href="{{$v.GridURL}}">Alle {{num (int64 $v.Total)}} Objekte als Raster</a></p>
+{{else if $v.Grid}}<div class="grid" id="grid">{{range $v.Grid}}{{template "v-card" .}}{{end}}</div>
+{{if $v.More}}<p class="more"><a href="{{$v.More}}" data-more>Mehr laden</a></p>{{end}}{{end}}
+{{if $v.ZipURL}}<p class="allzip"><a href="{{$v.ZipURL}}" download>Alle {{num (int64 $v.Total)}} {{if eq $v.Total 1}}Objekt{{else}}Objekte{{end}} als ZIP</a> <span class="n">{{size $v.ZipSize}}</span></p>{{end}}
+{{if $v.Tag}}{{template "tag-edit" (withData $ $v.Tag)}}{{end}}
+</div>
+<div id="panel" class="panel" hidden><button class="close" aria-label="Schließen">✕</button><div class="pbody"></div></div>
+<script type="module" src="/einreichen/static/archiv.mjs?v={{v}}"></script>
+{{template "site-foot" .}}{{end}}
+
+{{define "v-gridpage"}}{{$v := .Data}}<div id="grid">{{range $v.Grid}}{{template "v-card" .}}{{end}}</div>{{if $v.More}}<a href="{{$v.More}}" data-more>Mehr laden</a>{{end}}{{end}}
+
+{{define "v-start"}}{{$v := .Data}}{{template "site-head" .}}
+<link rel="stylesheet" href="/einreichen/static/archiv.css?v={{v}}">
+<div class="v start">
+<h1>{{homeTitle}} <span class="n">{{num $v.Files}} Dateien · {{size $v.Bytes}}</span></h1>
+<div class="entries">
+{{range $v.Entries}}<a class="entry" href="{{.Href}}"><span class="pic">{{if .Thumb}}<img src="{{.Thumb}}" alt="" loading="lazy">{{else}}{{template "v-icon" .Icon}}{{end}}</span><span class="t">{{.Label}}</span><span class="s">{{.Hint}} · {{num (int64 .Count)}}</span></a>
+{{end}}</div>
+{{if $v.Random}}{{template "v-shelf" (dict "Label" "Zufällig entdecken" "Href" "" "Count" 0 "Cards" $v.Random)}}{{end}}
+{{if $v.Recent}}{{template "v-shelf" (dict "Label" "Neu im Archiv" "Href" "" "Count" 0 "Cards" $v.Recent)}}{{end}}
+</div>
+<div id="panel" class="panel" hidden><button class="close" aria-label="Schließen">✕</button><div class="pbody"></div></div>
+<script type="module" src="/einreichen/static/archiv.mjs?v={{v}}"></script>
+{{template "site-foot" .}}{{end}}
+
+{{define "v-itembody"}}{{$i := .}}<article class="item">
+<div class="ipic">{{if $i.Preview}}<a href="{{$i.Open}}"{{if eq $i.Kind "image"}} data-img="{{$i.Open}}" class="card k-image"{{end}}><img src="{{$i.Preview}}" alt=""></a>{{else}}<a href="{{$i.Open}}" class="bigtype">{{if $i.Root}}Website{{else if $i.Files}}{{(index $i.Files 0).Type}}{{end}}</a>{{end}}</div>
+<div class="iinfo">
+<h1>{{$i.Heading}}</h1>
+<p class="meta">A{{$i.ID}} · <a href="/a/{{$i.ID}}" class="cite" data-copy="{{$i.Canonical}}" title="Dauerhafter Link">Link kopieren</a>{{if $i.Year}} · {{$i.Year}}{{end}}{{if $i.Bytes}} · {{size $i.Bytes}}{{end}}</p>
+{{if eq $i.State "withdrawn"}}<p class="note warn">Zurückgezogen{{if $i.Withdrawn}}: {{$i.Withdrawn}}{{end}}.</p>{{end}}
+{{if eq $i.State "missing"}}<p class="note warn">Die Dateien sind im Moment nicht auf dem Speicher.</p>{{end}}
+{{if and $i.Descr (ne $i.Descr $i.Title)}}<p class="descr">{{$i.Descr}}</p>{{end}}
+<p class="actions">{{if $i.Open}}<a class="btn" href="{{$i.Open}}">{{if $i.Root}}Website öffnen{{else if eq $i.Kind "pdf"}}PDF öffnen{{else if eq $i.Kind "image"}}Bild öffnen{{else}}Herunterladen{{end}}</a>{{end}}{{if $i.ZipHref}} <a class="btn2" href="{{$i.ZipHref}}">Alles als ZIP</a>{{end}}</p>
+{{if $i.Finds}}<section class="finds"><h2>Fundstellen für „{{$i.Q}}“ <span class="n">{{len $i.Finds}}{{if $i.FindsMore}}+{{$i.FindsMore}}{{end}}</span></h2>
+<ul>{{range $i.Finds}}<li><a href="{{.Href}}">Seite {{.Page}}</a>{{if .Name}} <span class="n">{{.Name}}</span>{{end}}<span class="snip">{{.Snippet}}</span></li>
+{{end}}</ul>{{if $i.FindsMore}}<p class="n">und {{$i.FindsMore}} weitere Seiten, im Leser mit „nächster Treffer“.</p>{{end}}</section>
+{{end}}{{if $i.TagLinks}}<div class="chips">{{range $i.TagLinks}}<a class="chip f-{{.Facet}}" href="{{.Href}}">{{.Label}}</a>{{end}}</div>{{end}}
+{{if gt (len $i.Files) 1}}<details class="files"{{if le (len $i.Files) 12}} open{{end}}><summary>{{len $i.Files}} Dateien</summary><ul>
+{{range $i.Files}}<li>{{if .Present}}<a href="{{.Href}}">{{.Name}}</a>{{else}}{{.Name}} (fehlt){{end}} <span class="n">{{size .Size}}</span></li>
+{{end}}</ul></details>{{end}}
+{{if $i.Rels}}<ul class="rels">{{range $i.Rels}}<li>{{.Label}} <a href="/a/{{.Item}}">{{.Title}}</a></li>{{end}}</ul>{{end}}
+</div>
+</article>
+{{if $i.Near}}{{template "v-shelf" (dict "Label" $i.NearLabel "Href" $i.NearHref "Count" 0 "Cards" $i.Near)}}{{end}}{{end}}
+
+{{define "v-itempanel"}}{{template "v-itembody" .Data}}<p class="meta"><a href="/a/{{.Data.ID}}{{if .Data.Q}}?q={{.Data.Q}}{{end}}">Ganze Seite</a></p>{{end}}
+
+{{define "v-item"}}{{$i := .Data}}{{template "site-head" .}}
+<link rel="stylesheet" href="/einreichen/static/archiv.css?v={{v}}">
+<div class="v">
+{{template "v-itembody" $i}}
+{{if or $i.History $i.Proposed}}<p class="meta"><a href="/a/{{$i.ID}}/verlauf">Verlauf</a>{{if $i.Proposed}} · {{plural $i.Proposed "offener Vorschlag" "offene Vorschläge"}}{{end}}</p>{{end}}
+{{if .Editing}}{{template "item-edit" .}}{{end}}
+{{template "comments" dict "P" . "Target" (printf "/a/%d" $i.ID) "Comments" $i.Comments}}
+</div>
+<script type="module" src="/einreichen/static/archiv.mjs?v={{v}}"></script>
+{{template "site-foot" .}}{{end}}
+
+{{define "site-search"}}{{$s := .Data}}{{template "site-head" .}}
+<link rel="stylesheet" href="/einreichen/static/archiv.css?v={{v}}">
+<div class="v search">
+{{if $s.Error}}<p class="note">{{$s.Error}}</p>{{end}}
+{{if not $s.Q}}
+<h1>Was möchtest du finden?</h1>
+<p class="meta">{{num $s.Files}} Dateien · {{size $s.Bytes}}. Stand des Katalogs: {{date $s.Stamp}}.</p>
+<p class="note">
+	Gesucht wird in Titeln, Beschreibungen, Schlagworten und Dateinamen und im
+	Text der Dokumente, bei Zeitschriften und Handbüchern Seite für Seite.
+	Mehrere Begriffe werden mit UND verknüpft, der letzte auch als Wortanfang.
+	Beispiele: <a href="?q=teledisk">teledisk</a>, <a href="?q=kaypro+handbuch">kaypro handbuch</a>,
+	<a href="?q=%22disk+sectors%22">"disk sectors"</a>.
+</p>
+{{else}}
+<section class="sq">
+<p class="count">{{if $s.Capped}}Über {{end}}{{num (int64 $s.Total)}} Treffer{{if $s.NoText}} in Titeln, Schlagworten und Dateinamen · <a href="{{$s.TextURL}}">auch im Text der Dokumente suchen</a>{{else}} · <a href="{{$s.TextURL}}">nur Titel, Schlagworte und Dateinamen</a>{{end}}</p>
+{{if $s.Chips}}<div class="chips">{{range $s.Chips}}<span class="chip f-{{.Facet}}"><span class="fl">{{.Label}}</span>{{range $i, $c := .Crumbs}}{{if $i}}<span class="sep">›</span>{{end}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{end}}{{if $.Editing}}<a class="ed" href="{{.Edit}}" title="{{if $.CanEdit}}Namen und Beschreibung bearbeiten{{else}}Änderung vorschlagen{{end}}" aria-label="bearbeiten">✎</a>{{end}}<a class="x" href="{{.Remove}}" title="Filter entfernen" aria-label="Filter {{.Label}} entfernen">✕</a></span>{{end}}</div>{{end}}
+{{if $s.Rows}}<details class="narrow"><summary>Eingrenzen nach {{range $i, $r := $s.Rows}}{{if $i}}, {{end}}{{$r.Label}}{{end}}</summary>
+{{range $s.Rows}}{{template "v-row" .}}
+{{end}}</details>{{end}}
+</section>
+<div class="results" id="results">
+{{if $s.Tiles}}<div class="tiles">{{range $s.Tiles}}<a class="tile f-{{.Facet}}" href="{{.Href}}"><span class="pic">{{if .Thumb}}<img src="{{.Thumb}}" alt="" loading="lazy">{{end}}</span><span class="tt"><span class="fl">{{facetLabel .Facet}}</span><b>{{.Label}}</b>{{if .Path}}<span class="s">{{.Path}}</span>{{end}}<span class="s">{{num (int64 .Count)}} Objekte ansehen →</span></span></a>{{end}}</div>{{end}}
+{{range $s.Leads}}{{template "v-shelf" (dict "Label" .Label "Href" .Href "Count" .Count "Cards" .Cards)}}{{end}}
+{{if $s.Empty}}<p class="note">Nichts gefunden.{{if $s.Chips}} Einen Filter oben entfernen, um mehr zu finden.{{else}} Andere Schreibweise versuchen, oder weniger Begriffe; die Sammlung ist überwiegend englischsprachig.{{end}}</p>
+{{else if not $s.List}}{{range $s.Shelves}}{{template "v-shelf" .}}{{end}}
+<p class="allgrid"><a href="{{$s.ListURL}}">Alle Treffer als Liste, mit Textstellen</a></p>
+{{else}}
+{{if $s.About}}<h2 class="sec">Im Titel, in Schlagworten oder Dateinamen <span class="n">{{$s.AboutN}}</span></h2>
+<div class="grid">{{range $s.About}}{{template "v-card" .}}{{end}}</div>{{end}}
+{{if $s.Groups}}<h2 class="sec">Im Text erwähnt <span class="n">{{$s.TextN}}</span></h2>
+<div class="hits">{{range $s.Groups}}{{if gt (len .Hits) 1}}<details class="hgroup"><summary><b>{{.Label}}</b> <span class="n">{{len .Hits}}{{if .More}}+{{.More}}{{end}} Treffer{{if .Pages}} auf {{.Pages}} Seiten{{end}}</span>{{if .Href}} <a href="{{.Href}}">nur hier suchen</a>{{end}}</summary>
+{{range .Hits}}{{template "v-hit" .}}{{end}}{{if .More}}<p class="n">{{if .Href}}<a href="{{.Href}}">alle {{.More}} weiteren</a>{{else}}und {{.More}} weitere{{end}}</p>{{end}}</details>
+{{else}}{{range .Hits}}{{template "v-hit" .}}{{end}}{{end}}{{end}}</div>
+{{if or $s.PrevURL $s.NextURL}}<nav class="pager">{{if $s.PrevURL}}<a href="{{$s.PrevURL}}">← zurück</a>{{end}}{{if $s.NextURL}} <a href="{{$s.NextURL}}">weitere Treffer →</a>{{end}}</nav>{{end}}
+{{end}}{{end}}
+</div>
+<p class="stale" id="stale" hidden>Mit Enter oder „Suchen“ nach dem neuen Begriff suchen.</p>
+{{end}}
+</div>
+<div id="panel" class="panel" hidden><button class="close" aria-label="Schließen">✕</button><div class="pbody"></div></div>
+<script type="module" src="/einreichen/static/archiv.mjs?v={{v}}"></script>
+{{template "site-foot" .}}{{end}}
+
+{{define "v-hit"}}<div class="hit" data-item="{{.Href}}">
+<a class="hpic" href="{{.Href}}" data-panel>{{if .Thumb}}<img src="{{.Thumb}}" alt="" loading="lazy">{{else}}<span class="type">{{.Type}}</span>{{end}}</a>
+<div class="hb"><a class="ht" href="{{if .File}}{{.File}}{{else}}{{.Href}}{{end}}"{{if not .File}} data-panel{{end}}>{{.Title}}</a>{{if .Sub}} <span class="s">{{.Sub}}</span>{{end}}
+{{if .Snippet}}<p class="snip">{{.Snippet}}</p>{{end}}
+{{if .Pages}}<p class="pages">{{if eq .NPages 1}}Seite{{else}}{{.NPages}} Seiten:{{end}} {{range $i, $p := .Pages}}{{if $i}}, {{end}}<a href="{{$p.Href}}">{{$p.N}}</a>{{end}}{{if .MoreLeft}} und {{.MoreLeft}} weitere{{end}}</p>{{end}}
+</div></div>{{end}}
+{{define "v-row"}}<div class="refine f-{{.Facet}}"><span class="rl">nach {{.Label}}</span><div class="opts">{{range .Options}}<a class="opt{{if .Extra}} x{{end}}" href="{{.Href}}">{{.Label}}<span class="n">{{.Count}}</span></a>{{end}}{{if .More}}<button type="button" class="unfold" data-unfold>+ {{.More}} weitere</button>{{end}}</div></div>{{end}}
+
+{{define "v-rows"}}{{if .Rows}}<details class="narrow"><summary>Eingrenzen nach {{range $i, $r := .Rows}}{{if $i}}, {{end}}{{$r.Label}}{{end}}</summary>
+{{range .Rows}}{{template "v-row" .}}
+{{end}}</details>{{end}}{{end}}
+
+{{define "v-reader"}}{{$r := .Data}}<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{$r.Item.Title}} – {{site}}</title>
+<link rel="stylesheet" href="/einreichen/static/reader.css?v={{v}}">
+<link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body class="reader">
+<header class="rbar">
+<a class="back" href="/a/{{$r.Item.ID}}{{if $r.Q}}?q={{$r.Q}}{{end}}" title="Zum Objekt">←</a>
+<span class="title">{{$r.Item.Title}}</span>
+<span class="hitnav" hidden><button data-go="prevhit" title="Voriger Treffer">‹</button><span class="hitpos"></span><button data-go="nexthit" title="Nächster Treffer">›</button></span>
+<span class="pagenav"><button data-go="prev" title="Vorige Seite">−</button><label>Seite <input type="number" min="1" value="{{$r.Page}}" class="pageno" inputmode="numeric"> <span class="of"></span></label><button data-go="next" title="Nächste Seite">+</button></span>
+<a class="save" hidden title="Diese Seite als Bild speichern">Bild</a>
+<a class="orig" href="{{$r.File.Href}}#page={{$r.Page}}" title="Das PDF im Browser öffnen">Original</a>
+</header>
+<p class="passage" hidden></p>
+<main class="stage" data-reader="{{$r.Data}}"><div class="page"><canvas></canvas><img alt="Seite" hidden><div class="textLayer"></div></div><p class="loading">Lade …</p></main>
+<script src="/einreichen/static/pdfjs/pdf.min.js?v={{v}}"></script>
+<script type="module" src="/einreichen/static/reader.mjs?v={{v}}"></script>
+</body>
+</html>{{end}}

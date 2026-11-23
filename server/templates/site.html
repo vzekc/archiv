@@ -1,0 +1,260 @@
+{{define "site-head"}}<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{if .Title}}{{.Title}} – {{end}}{{site}}</title>
+<link rel="stylesheet" href="{{call .Assets "oc.css"}}">
+<link rel="stylesheet" href="/einreichen/static/site.css?v={{v}}">
+<link rel="shortcut icon" href="/favicon.ico">
+{{template "site-scripts" .}}</head>
+<body>
+<header class="top">
+	<div class="wrap">
+		<div class="brand">
+			<a class="home" href="/">{{site}}</a>
+			{{with tagline}}<span class="tag">{{.}}</span>{{end}}
+		</div>
+		{{template "site-searchform" .}}
+	</div>
+</header>
+<div class="wrap">
+{{if .Notice}}<p class="note ok">{{.Notice}}</p>{{end}}
+{{if .Crumbs}}<nav class="crumbs">{{range $i, $c := .Crumbs}}{{if $i}}<span class="sep">/</span>{{end}}{{if eq (len $.Crumbs) (inc $i)}}<span>{{$c.Label}}</span>{{else}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{end}}{{end}}</nav>{{end}}
+{{end}}
+
+{{define "site-searchform"}}{{$chain := chain .Scope .Areas}}{{$view := .ScopeView}}
+		<form class="q" action="/suche" method="get" role="search">
+			<input type="search" name="q" value="{{.Query}}" placeholder="Suchbegriff" aria-label="Suchbegriff">
+{{if or $view $chain}}			<select name="in" aria-label="Wo suchen">
+{{if $view}}				<option value="tags:{{.ScopeTags}}" selected>in {{$view}}</option>
+{{end}}{{range $i, $p := $chain}}				<option value="{{$p.Path}}"{{if and (eq $i 0) (not $view)}} selected{{end}}>in {{$p.Label}}</option>
+{{end}}				<option value="">überall</option>
+			</select>
+{{end}}			<button type="submit" aria-label="Suchen" title="Suchen"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+		</form>{{end}}
+
+{{define "site-foot"}}
+	<footer>
+		Stand {{.Stamp}} · <a href="/suche">Suche</a> · <a href="/aenderungen">Letzte Änderungen</a> · <a href="/einreichen/">Einreichen</a>{{if and .User .User.Moderator}} · <a href="/browser">Archiv-Browser</a> · <a href="/moderation">Vorschläge und Meldungen</a> · <a href="/moderation/import">Katalog</a>{{end}}
+	</footer>
+</div>
+</body>
+</html>
+{{end}}
+
+{{define "site-error"}}{{template "site-head" .}}
+<h1>{{.Title}}</h1>
+<p class="note">{{.Data}}</p>
+<p><a href="{{if .Query}}{{.Query}}{{else}}/{{end}}">{{if .Query}}Zurück zum Verzeichnis{{else}}Zur Startseite{{end}}</a></p>
+{{template "site-foot" .}}{{end}}
+
+{{define "site-listing"}}{{$l := .Data}}{{template "site-head" .}}
+<h1>{{$l.Heading}}</h1>
+<p class="meta">{{$l.Summary}}</p>
+{{if $l.ZipFiles}}{{if gt $l.ZipBytes 21474836480}}<p class="dl off">Für einen ZIP-Download zu groß ({{plural (int $l.ZipFiles) "Datei" "Dateien"}} · {{size $l.ZipBytes}}, Grenze 20 GB) – bitte die Unterverzeichnisse einzeln herunterladen.</p>
+{{else}}<p class="dl"><a href="{{$l.ZipHref}}">Als ZIP herunterladen</a> <span>{{plural (int $l.ZipFiles) "Datei" "Dateien"}} · {{size $l.ZipBytes}}, mit Unterverzeichnissen</span></p>
+{{end}}{{end}}
+{{if $l.Covers}}	<div class="sheet covers">
+{{range $l.Covers}}		<figure class="tile sub" data-preview="{{.Preview}}"><a href="{{pathesc .Name}}/" title="{{.Label}}"><img src="{{.Cover}}" alt="" loading="lazy" decoding="async"></a><figcaption><a href="{{pathesc .Name}}/">{{.Label}}</a> <span class="sz">{{plural .Count "Eintrag" "Einträge"}}</span></figcaption></figure>
+{{end}}	</div>
+{{end}}
+{{if $l.Sheet}}	<h2>{{$l.SheetHeading}}</h2>
+	<div class="sheet">
+{{range $l.Sheet}}		<figure class="tile{{if .IsDoc}} doc{{end}}"{{if .IsDoc}} data-preview="{{.Preview}}"{{end}}><a href="{{pathesc .Name}}" title="{{.Name}}"><img src="{{.Thumb}}" alt="{{.Name}}" loading="lazy" decoding="async"></a><figcaption>{{if .Descr}}{{.Descr}}{{else}}{{.Name}}{{end}}{{if .IsDoc}} <span class="sz">{{size .Size}}</span>{{end}}</figcaption></figure>
+{{end}}	</div>
+{{if or $l.Files $l.Dirs $l.Parent}}	<h2>Weitere Dateien</h2>{{end}}
+{{end}}
+{{if or $l.Parent $l.Dirs $l.Files}}	<div class="listing">
+{{if $l.Parent}}		<div class="row dir"><div class="nm"><a href="{{$l.Parent}}">.. übergeordnetes Verzeichnis</a></div><div class="sz"></div></div>
+{{end}}{{range $l.Dirs}}		<div class="row dir"><div class="nm"><a href="{{pathesc .Name}}/">{{.Label}}</a></div><div class="sz">{{plural .Count "Eintrag" "Einträge"}}</div>{{if .Descr}}<div class="ds">{{.Descr}}</div>{{end}}</div>
+{{end}}{{range $l.Files}}		<div class="row"><div class="nm">{{if .Type}}<span class="badge">{{.Type}}</span>{{end}}<a href="{{pathesc .Name}}">{{.Name}}</a> <a class="item" href="/a/{{.Item}}" title="Objekt A{{.Item}}">A{{.Item}}</a></div><div class="sz">{{size .Size}}</div>{{if .Descr}}<div class="ds">{{.Descr}}</div>{{end}}</div>
+{{end}}	</div>
+{{else if not (or $l.Sheet $l.Covers)}}	<p class="note">Dieses Verzeichnis ist leer.</p>
+{{end}}
+{{template "site-foot" .}}{{end}}
+
+{{define "site-scripts"}}{{with .Data}}{{if listingLightbox .}}<script src="{{call $.Assets "lightbox.js"}}" defer></script>
+{{end}}{{if listingPreviews .}}<script src="{{call $.Assets "preview.js"}}" defer></script>
+{{end}}{{end}}{{end}}
+
+{{define "item-edit"}}{{$i := .Data}}
+<details class="edit"{{if eq .Notice ""}}{{end}}>
+<summary>{{if .CanEdit}}Bearbeiten{{else}}Änderung vorschlagen{{end}}</summary>
+<form method="post" action="/a/{{$i.ID}}/bearbeiten" class="edit">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<input type="hidden" name="rev" value="{{$i.Rev}}">
+<label>Titel <input name="title" value="{{$i.Title}}" required></label>
+<label>Beschreibung <textarea name="descr" rows="3">{{$i.Descr}}</textarea></label>
+<label>Jahr <input name="year" value="{{$i.Year}}" placeholder="1983, 1983-85, ca. 1980" class="short"></label>
+<fieldset><legend>Schlagworte</legend>
+{{range $i.Tags}}<label class="chk"><input type="checkbox" name="tag_remove" value="{{.ID}}"> {{facetLabel .Facet}}: {{.Path}} entfernen</label>
+{{end}}<label>dazu <input name="tag_add" list="tagsuggest" placeholder="Rechner: DEC › VAX" autocomplete="off" data-suggest></label>
+<label>dazu <input name="tag_add" list="tagsuggest" placeholder="Gruppe: Peripherie" autocomplete="off" data-suggest></label>
+<datalist id="tagsuggest"></datalist>
+{{if .CanCreateTags}}<p class="meta">Ein Schlagwort, das es noch nicht gibt, wird angelegt, wenn die Facette davorsteht („System: CP/M-86“).</p>{{end}}
+</fieldset>
+<fieldset><legend>Beziehungen</legend>
+{{range $i.Rels}}{{if .Outgoing}}<label class="chk"><input type="checkbox" name="rel_remove" value="{{.Kind}}:{{.Item}}"> {{.Label}} A{{.Item}} entfernen</label>
+{{end}}{{end}}<label>dieses Objekt <select name="rel_kind"><option value="">–</option>{{range $k, $l := relKinds}}<option value="{{$k}}">{{$l}}</option>{{end}}</select> <input name="rel_item" placeholder="A12345" class="short"></label>
+</fieldset>
+<fieldset class="efiles"><legend>Dateien</legend>
+{{if gt (len $i.Files) 1}}<p class="n">Entfernen und Abtrennen brauchen mindestens eine Datei, die bleibt. Entfernte Dateien werden zurückgezogen, mit dem Grund unten; sie lassen sich wiederherstellen.</p>{{end}}
+{{range $i.Files}}<div class="efile"><input name="fname_{{.N}}" value="{{.Name}}" aria-label="Dateiname" size="40">
+{{if gt (len $i.Files) 1}}<select name="role_{{.N}}" aria-label="Rolle">{{$r := .Role}}{{range $x := list "main" "part" "cover" "extra"}}<option value="{{$x}}"{{if eq $x $r}} selected{{end}}>{{roleLabel $x}}</option>{{end}}</select>
+<select name="fact_{{.N}}" aria-label="Datei"><option value="">behalten</option><option value="split">als eigenes Objekt abtrennen</option><option value="move">in Objekt verschieben:</option>{{if $.CanEdit}}<option value="remove">entfernen</option>{{end}}</select>
+<input name="finto_{{.N}}" placeholder="A12345" class="short" aria-label="Zielobjekt">{{end}}</div>
+{{end}}</fieldset>
+{{if .CanEdit}}<fieldset><legend>Zusammenlegen, zurückziehen</legend>
+<label>in Objekt aufgehen lassen <input name="merge_into" placeholder="A12345" class="short"></label>
+{{if eq $i.State "withdrawn"}}<label class="chk"><input type="checkbox" name="restore" value="1"> wiederherstellen</label>
+{{else}}<label class="chk"><input type="checkbox" name="withdraw" value="1"> zurückziehen (Grund unten angeben)</label>{{end}}
+</fieldset>{{end}}
+<label>Grund <input name="reason" placeholder="woher du das weißt, warum es besser ist"></label>
+<button type="submit">{{if .CanEdit}}Speichern{{else}}Vorschlagen{{end}}</button>
+</form>
+</details>
+<script type="module" src="/einreichen/static/site.mjs?v={{v}}"></script>
+{{end}}
+
+{{define "comments"}}{{$p := .P}}
+{{if .Comments}}<h2 id="kommentare">Kommentare und Meldungen</h2>
+<div class="comments">{{range .Comments}}{{template "comment" dict "C" . "P" $p "Target" $.Target}}{{end}}</div>{{end}}
+{{if $p.Editing}}<details class="edit"{{if .Comments}} open{{end}}><summary>Kommentar oder Meldung schreiben</summary>
+<form method="post" action="{{.Target}}/kommentar" class="comment">
+<input type="hidden" name="csrf" value="{{$p.CSRF}}">
+<label>Art <select name="kind">{{range $k, $l := commentKinds}}<option value="{{$k}}"{{if eq $k "comment"}} selected{{end}}>{{$l}}</option>{{end}}</select></label>
+<textarea name="body" rows="3" required placeholder="Was ist dir aufgefallen? Bei „Beschreibung falsch“ und „gehört woanders hin“ geht es oft schneller, die Änderung gleich vorzuschlagen."></textarea>
+<button type="submit">Absenden</button>
+</form></details>{{end}}{{end}}
+
+{{define "comment"}}{{$c := .C}}<div class="cmt{{if $c.IsReport}} report{{end}}" id="k{{$c.ID}}">
+<div class="ch">{{name $c.User}} · {{time $c.At}}{{if $c.IsReport}} · <span class="kind">{{kindLabel $c.Kind}}</span>{{if ne $c.State "open"}} ({{if eq $c.State "done"}}erledigt{{else}}abgewiesen{{end}}){{end}}{{end}}</div>
+<div class="cb">{{$c.Body}}</div>
+{{range $c.Replies}}{{template "comment" dict "C" . "P" $.P "Target" $.Target}}{{end}}
+{{if $.P.Editing}}<details class="reply"><summary>Antworten</summary><form method="post" action="{{$.Target}}/kommentar">
+<input type="hidden" name="csrf" value="{{$.P.CSRF}}"><input type="hidden" name="parent" value="{{$c.ID}}"><input type="hidden" name="kind" value="comment">
+<textarea name="body" rows="2" required></textarea> <button type="submit">Antworten</button></form></details>{{end}}
+</div>{{end}}
+
+{{define "itemrows"}}<div class="listing">
+{{range .}}	<div class="row{{if .Thumb}} th{{end}}">{{if .Thumb}}<a class="cover" href="{{.FileHref}}"><img src="{{.Thumb}}" alt="" loading="lazy"></a>{{end}}{{if .FileHref}}<div class="nm">{{if .Type}}<span class="badge">{{.Type}}</span>{{end}}<a href="{{.FileHref}}">{{.Name}}</a> <a class="item" href="{{.Href}}" title="Objekt A{{.ID}}">A{{.ID}}</a></div><div class="sz">{{size .Size}}</div>{{if ne .Title .Name}}<div class="ds">{{.Title}}</div>{{end}}{{if and .Descr (ne .Descr .Title)}}<div class="ds">{{.Descr}}</div>{{end}}
+{{else}}<div class="nm"><a href="{{.Href}}">{{.Title}}</a> <a class="item" href="{{.Href}}">A{{.ID}}</a></div><div class="sz">{{.Files}} Dateien · {{size .Size}}</div>{{if .Descr}}<div class="ds">{{.Descr}}</div>{{end}}{{end}}<div class="pt"><a href="{{.FolderHref}}">{{.Folder}}</a></div></div>
+{{end}}</div>{{end}}
+
+{{define "site-history"}}{{$h := .Data}}{{template "site-head" .}}
+<h1>{{if $h.Href}}Verlauf: <a href="{{$h.Href}}">{{$h.Label}}</a>{{else}}{{$h.Label}}{{end}}</h1>
+{{if not $h.Revs}}<p class="note">Noch keine Änderungen.</p>{{else}}
+<form method="post" action="/moderation/zuruecknehmen">
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="back" value="{{if $h.Href}}{{$h.Href}}{{else}}/aenderungen{{end}}">
+<div class="listing">
+{{range $h.Revs}}	<div class="row rev st-{{.State}}"><div class="nm">{{if and $h.Revert (eq .State "applied")}}<input type="checkbox" name="rev" value="{{.ID}}"> {{end}}{{.What}}</div><div class="sz">{{revState .State}}</div>
+	<div class="pt">{{if not $h.Href}}<a href="{{.TargetHref}}">{{.TargetLabel}}</a> · {{end}}{{name .User}} · {{time .At}}{{if .Reason}} · „{{.Reason}}“{{end}}</div></div>
+{{end}}</div>
+{{if $h.Revert}}<p><input name="reason" placeholder="Grund"> <button type="submit">Ausgewählte zurücknehmen</button></p>{{end}}
+</form>{{end}}
+{{template "site-foot" .}}{{end}}
+
+{{define "site-queue"}}{{$q := .Data}}{{template "site-head" .}}
+<h1>Vorschläge und Meldungen</h1>
+<p class="meta">Jeder Kasten ist ein Vorschlag, von einem Mitglied oder automatisch. Die Haken wählen aus, welche Änderungen „Übernehmen“ oder „Ablehnen“ betrifft. Ein Klick auf ein Objekt öffnet es in einem neuen Fenster.</p>
+{{if not $q.Editing}}<p class="note">Der Katalog ist noch schreibgeschützt; Vorschläge und Meldungen gibt es, sobald die alte Seite abgeschaltet ist.</p>{{end}}
+<h2>Vorschläge</h2>
+{{if not $q.Batches}}<p class="meta">Keine offenen.</p>{{else}}<p class="meta">{{$q.Total}} offen{{if $q.Pages}}, Seite {{$q.Page}}:{{range $q.Pages}} {{if eq . $q.Page}}<b>{{.}}</b>{{else}}<a href="/moderation?seite={{.}}">{{.}}</a>{{end}}{{end}}{{end}}</p>{{end}}
+{{range $q.Batches}}<form method="post" action="/moderation/vorschlaege" class="batch">
+<input type="hidden" name="csrf" value="{{$.CSRF}}">
+<div class="bh">{{name .User}} · {{time .At}}</div>
+<div class="listing">
+{{range .Revs}}	<div class="row"><div class="nm"><input type="checkbox" name="rev" value="{{.ID}}" checked> <a href="{{.TargetHref}}">{{.TargetLabel}}</a>: {{.What}}</div>{{if .Reason}}<div class="pt">„{{.Reason}}“</div>{{end}}
+{{with .Gather}}<div class="gather">
+<p>Übernehmen macht daraus <b>ein Objekt</b> „{{.Title}}“ (<a href="/a/{{.Item}}" target="_blank">A{{.Item}}</a>) mit {{.Total}} Dateien in dieser Reihenfolge{{if .Covers}}; die Bilder werden sein Titelbild{{end}}. {{if .Others}}Die anderen {{.Others}} Objekte gehen darin auf; ihre Adressen führen danach dorthin.{{end}} Das lässt sich nicht automatisch zurücknehmen.</p>
+<div class="gfiles">{{range .Files}}<a href="/a/{{.Item}}" target="_blank" class="gf{{if .Cover}} cover{{end}}" title="{{.Name}}">{{if .Thumb}}<img src="{{.Thumb}}" alt="" loading="lazy">{{else}}<span class="ext">{{.Ext}}</span>{{end}}<span class="fn">{{.Name}}</span>{{if .Cover}}<span class="role">Titelbild</span>{{end}}</a>{{end}}{{if .More}}<span class="gmore">… und {{.More}} weitere</span>{{end}}</div>
+</div>{{end}}</div>
+{{end}}</div>
+<button type="submit" name="action" value="accept">Übernehmen</button> <button type="submit" name="action" value="reject" class="danger">Ablehnen</button>
+</form>
+{{end}}
+<h2>Meldungen</h2>
+{{if not $q.Reports}}<p class="meta">Keine offenen.</p>{{end}}
+{{range $q.Reports}}<form method="post" action="/moderation/meldung" class="batch">
+<input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="id" value="{{.ID}}">
+<div class="bh"><span class="kind">{{kindLabel .Kind}}</span> · <a href="{{.TargetHref}}#k{{.ID}}">{{.TargetLabel}}</a> · {{name .User}} · {{time .At}}</div>
+<div class="cb">{{.Body}}</div>
+<input name="note" placeholder="Antwort an den Meldenden (optional)">
+<button type="submit" name="action" value="done">Erledigt</button> <button type="submit" name="action" value="dismiss">Abweisen</button>
+</form>
+{{end}}
+{{template "site-foot" .}}{{end}}
+
+{{define "site-browser"}}{{template "site-head" .}}
+<meta name="csrf" content="{{.CSRF}}">
+<meta name="editing" content="{{if .Editing}}1{{else}}0{{end}}">
+<link rel="stylesheet" href="/einreichen/static/browser.css?v={{v}}">
+{{if not .Editing}}<p class="note">Nur zum Ansehen: Der Katalog ist schreibgeschützt, bis die alte Seite abgeschaltet ist.</p>{{end}}
+<div class="browser">
+	<aside><ul id="tree" class="tree"></ul></aside>
+	<section>
+		<div class="bar">
+			<h1 id="nodetitle"></h1> <a id="nodelink" href="#" target="_blank" hidden title="Seite ansehen">↗</a>
+			<span id="count" class="meta"></span>
+		</div>
+		<div class="bar tools">
+			<span class="views"><button data-view="list">Liste</button><button data-view="table">Tabelle</button><button data-view="tiles">Kacheln</button></span>
+			<button id="b-newfolder">Neuer Ordner</button>
+			<button id="b-rename">Umbenennen</button>
+			<button id="b-paste" title="Strg-V">Einfügen</button>
+			<button id="b-remove" title="Entf">Von hier entfernen</button>
+			<button id="b-withdraw">Zurückziehen</button>
+			<button id="b-store">Nach objekte/</button>
+			<form id="q" class="bq"><input type="search" placeholder="im Katalog suchen"></form>
+			<button id="b-savesearch" hidden>Suche merken</button>
+		</div>
+		<div id="subs" class="subs"></div>
+		<div id="pane" class="pane"><div id="items" class="items"></div></div>
+		<details id="sessionbox" class="session" hidden><summary>Änderungen dieser Sitzung</summary><ul id="session"></ul></details>
+		<p class="meta keys">Mehrfachauswahl mit Umschalt und Strg · Strg-X/Strg-V verschiebt, Strg-C/Strg-V legt zusätzlich ab · Ziehen auf einen Ordner links verschiebt innerhalb einer Facette, mit Alt oder Strg und über Facetten hinweg legt es zusätzlich ab · Entf entfernt von hier (das Objekt bleibt) · F2 benennt um · Strg-Z macht rückgängig · Dateien vom Schreibtisch, auf die Liste gezogen, werden neue Objekte unter dem offenen Schlagwort.</p>
+	</section>
+</div>
+<dialog id="dlg" class="confirm"></dialog>
+<div id="toast" class="toast" hidden></div>
+<script type="module" src="/einreichen/static/browser.mjs?v={{v}}"></script>
+{{template "site-foot" .}}{{end}}
+
+{{define "site-collection"}}{{$c := .Data}}{{template "site-head" .}}
+<h1>{{$c.Title}}</h1>
+<p class="meta">Sammlung von {{name $c.Owner}} · {{plural (len $c.Items) "Objekt" "Objekte"}} · <a href="/s/{{$c.ID}}">{{site}}/s/{{$c.ID}}</a></p>
+{{if $c.Intro}}<div class="page">{{markdown $c.Intro}}</div>{{end}}
+{{if $c.Items}}{{template "itemrows" $c.Items}}{{else}}<p class="note">Noch leer. Objekte kommen im Archiv-Browser hinein.</p>{{end}}
+{{if and .Editing .CanEdit}}<details class="edit"><summary>Bearbeiten</summary>
+<form method="post" action="/s/{{$c.ID}}/bearbeiten" class="edit">
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="rev" value="{{$c.Rev}}">
+<label>Name <input name="title" value="{{$c.Title}}" required></label>
+<label>Einleitung (Markdown) <textarea name="intro" rows="8">{{$c.Intro}}</textarea></label>
+<button type="submit">Speichern</button>
+</form></details>{{end}}
+{{template "site-foot" .}}{{end}}
+
+
+{{define "tag-edit"}}{{$v := .Data}}{{if $v.History}}<p class="meta"><a href="/schlagwort/{{$v.Ref.ID}}/verlauf">Verlauf</a></p>{{end}}
+{{if .Editing}}<details class="edit" id="bearbeiten">
+<summary>{{if .CanEdit}}Bearbeiten{{else}}Änderung vorschlagen{{end}}</summary>
+<form method="post" action="/schlagwort/{{$v.Ref.ID}}/bearbeiten" class="edit">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<input type="hidden" name="rev" value="{{$v.Rev}}">
+<label>Name <input name="name" value="{{$v.Name}}" required></label>
+<label>Kurzbeschreibung <input name="descr" value="{{$v.Descr}}"></label>
+<label>Seitentext (Markdown) <textarea name="page" rows="10">{{$v.Page}}</textarea></label>
+{{if and .CanEdit (ne $v.Ref.Facet "location")}}<label>verschieben unter <input name="move_under" placeholder="{{if $v.ParentPath}}{{$v.ParentPath}}{{else}}Hersteller › Serie{{end}}; „-“ = ganz nach oben"></label>
+<label>zusammenlegen mit <input name="merge_into" placeholder="Name › Name des anderen Schlagworts"></label>{{end}}
+{{if and .CanCreateTags (ne $v.Ref.Facet "location")}}<label>neues Schlagwort darunter <input name="new_child" placeholder="z. B. ein Modell der Serie"></label>{{end}}
+<label>Grund <input name="reason"></label>
+<button type="submit">{{if .CanEdit}}Speichern{{else}}Vorschlagen{{end}}</button>
+</form>
+{{if .CanEdit}}<form method="post" action="/schlagwort/{{$v.Ref.ID}}/bild" enctype="multipart/form-data" class="edit">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Bild für den Seitentext <input type="file" name="bild" accept="image/*"></label>
+<button type="submit">Hochladen</button>
+</form>{{end}}
+</details>{{end}}
+{{template "comments" dict "P" . "Target" (printf "/schlagwort/%d" $v.Ref.ID) "Comments" $v.Comments}}{{end}}

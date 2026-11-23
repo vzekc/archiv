@@ -1,0 +1,240 @@
+{{define "submission"}}{{template "head" .}}
+{{with .Data}}{{$v := .}}{{$s := .S}}
+<nav class="crumbs"><a href="{{$.Base}}/">Einreichungen</a></nav>
+<h1>{{if $s.Title}}{{$s.Title}}{{else}}Neue Einreichung{{end}} <span class="st st-{{$s.State}}">{{state $s.State}}</span></h1>
+<p class="meta">{{if not .IsOwner}}von {{.Owner}} · {{end}}{{if $s.Submitted.Valid}}eingereicht {{time $s.Submitted.Int64}}{{else}}angelegt {{time $s.Created}}{{end}}
+	· {{plural (len .Files) "Datei" "Dateien"}}, {{size .Bytes}}
+	{{if .Claimer}}· wird von <b>{{.Claimer}}</b> bearbeitet{{end}}</p>
+
+{{if eq $s.State "question"}}{{if .IsOwner}}
+<div class="note warn"><b>Rückfrage der Moderatoren:</b>{{range lines $s.Question}}<br>{{.}}{{end}}</div>
+{{end}}{{end}}
+{{if eq $s.State "rejected"}}<div class="note warn"><b>Abgelehnt:</b> {{$s.DecisionNote}}</div>{{end}}
+{{if eq $s.State "failed"}}<div class="note warn"><b>Aufnahme fehlgeschlagen:</b> {{$s.DecisionNote}}</div>{{end}}
+{{if eq $s.State "done"}}<div class="note ok">Diese Einreichung ist im Archiv{{if .Items}}:{{range $i, $l := .Items}}{{if $i}},{{end}} <a href="/a/{{$l.ID}}">A{{$l.ID}} {{$l.Title}}</a>{{if $l.Withdrawn}} ({{$l.Withdrawn}}){{end}}{{end}}{{else}}.{{end}}
+{{range .Items}}{{if .Parts}}<details><summary>Die {{len .Parts}} Objekte aus A{{.ID}}</summary><ul>{{range .Parts}}<li><a href="/a/{{.ID}}">A{{.ID}} {{.Title}}</a></li>{{end}}</ul></details>{{end}}{{end}}</div>{{end}}
+
+{{if .CanEdit}}
+<form id="form" method="post" action="{{$.Base}}/e/{{$s.ID}}/speichern" class="subform">
+	<input type="hidden" name="csrf" value="{{$.CSRF}}">
+	<label>Titel <input name="title" value="{{$s.Title}}" maxlength="200" required></label>
+	<label>Beschreibung <span class="hint">Was ist es, für welchen Rechner, woher stammt es?</span>
+		<textarea name="description" rows="4">{{$s.Description}}</textarea></label>
+	<label class="check"><input type="checkbox" name="credit" value="1"{{if $s.Credit}} checked{{end}}>
+		Im Archiv als Einreicher genannt werden („eingereicht von {{$.UserName}}“)</label>
+	<label>Anmerkung für die Moderatoren <span class="hint">z. B. wohin es deiner Meinung nach gehört</span>
+		<textarea name="owner_note" rows="2">{{$s.OwnerNote}}</textarea></label>
+</form>
+{{else if $s.Description}}
+<div class="descr">{{range lines $s.Description}}{{.}}<br>{{end}}</div>
+{{end}}
+
+{{if and .Mod .CanDecide}}{{template "modpanel" (dict "V" . "Base" $.Base "CSRF" $.CSRF)}}{{end}}
+<h2>{{if .CanDecide}}Die Dateien im Einzelnen{{else}}Dateien{{end}}</h2>
+{{if .CanEdit}}<form method="post" action="{{$.Base}}/e/{{$s.ID}}/doubletten-entfernen" class="btns small" id="dupsform"{{if not .Dups}} hidden{{end}}
+	data-confirm="Alle Dateien entfernen, die es im Archiv oder in einer anderen Einreichung schon gibt?">
+	<input type="hidden" name="csrf" value="{{$.CSRF}}">
+	<span class="dup"><span id="dupcount">{{plural .Dups "Datei gibt" "Dateien gibt"}}</span> es schon.</span>
+	<button class="small danger">Alle Doubletten entfernen</button>
+</form>{{end}}
+<p class="note fresh" id="fresh" hidden>Neue Vorschläge der KI sind da. <button type="button" class="small" id="reload">Seite neu laden</button></p>
+<div class="files">
+{{range .Groups}}{{$g := .}}
+<section class="group">
+	{{with .Sugg}}
+	<div class="sugg gsugg">
+		<div><span class="ai">Vorschlag</span> {{plural (len $g.Files) "Datei" "Dateien"}}{{with .Group}} · {{.}}{{end}}
+		{{if $v.Mod}}<span class="meta">· Sicherheit {{pct .Confidence}} %</span>{{end}}</div>
+		{{if .Tags}}<div class="tags">{{$sg := .}}{{range .Tags}}<span class="tag">{{.}}{{if $sg.IsNew .}} <i>neu</i>{{end}}</span> {{end}}</div>{{end}}
+		{{if .Reason}}<div class="meta">{{.Reason}}</div>{{end}}
+		{{if $v.CanDecide}}<div class="meta"><a href="#g{{$g.N}}">Schlagworte und Beschreibungen bearbeiten</a></div>{{end}}
+		{{if and .NewTags (not $v.Mod)}}<div class="meta">Neue Schlagworte legt ein Moderator bei der Aufnahme an.</div>{{end}}
+		{{if and $v.Mod .NotesForModerator}}<div class="modnote">{{itemlinks .NotesForModerator}}</div>{{end}}
+		{{if $v.CanEdit}}<form method="post" action="{{$.Base}}/e/{{$s.ID}}/vorschlag" class="btns small">
+			<input type="hidden" name="csrf" value="{{$.CSRF}}">
+			{{range $g.Files}}<input type="hidden" name="f" value="{{.F.ID}}">{{end}}
+			<button class="small quiet">Beschreibungen übernehmen</button>
+		</form>{{end}}
+	</div>
+	{{end}}
+	{{range .Files}}{{$f := .F}}
+	<div class="file" id="f{{$f.ID}}">
+		<div class="fthumb">{{with thumb $f}}<a href="{{if $f.ArchivePath}}{{archive $f.ArchivePath}}{{else}}{{$.Base}}/f/{{$f.ID}}/bild/preview{{end}}" target="_blank"><img src="{{.}}" alt="" loading="lazy"></a>{{else}}<span class="kind">{{kind $f.Kind}}</span>{{end}}</div>
+		<div class="fbody">
+			<div class="fname"><b>{{$f.Name}}</b> <span class="meta">{{size $f.Size}}</span>
+				{{if $f.Path}}<a class="dlink" href="{{$.Base}}/f/{{$f.ID}}/datei">herunterladen</a>{{end}}
+				{{with .Item}} → <a href="/a/{{.ID}}">Objekt A{{.ID}}</a>{{else}}{{if $f.ArchivePath}} → <a href="{{archive $f.ArchivePath}}">{{$f.ArchivePath}}</a>{{end}}{{end}}</div>
+			{{if $v.CanEdit}}
+			<input class="fdesc" name="desc_{{$f.ID}}" form="form" value="{{$f.Description}}" aria-label="Beschreibung von {{$f.Name}}"
+				placeholder="{{with .Sugg}}{{.Description}}{{else}}Beschreibung dieser Datei{{end}}"{{with .Sugg}}{{if .Description}} data-sugg="{{.Description}}"{{end}}{{end}}>
+			{{if and (not $f.Description) .Sugg}}{{if .Sugg.Description}}<div class="hint">Grau: Vorschlag der KI, er gilt, wenn du nichts änderst. Zum Ändern ins Feld klicken.</div>{{end}}{{end}}
+			{{else if $f.Description}}<div class="fdescr">{{$f.Description}}</div>{{end}}
+			<div class="finfo" id="fi{{$f.ID}}">{{template "fileinfo" (dict "V" $v "FV" . "Base" $.Base "CSRF" $.CSRF)}}</div>
+			{{if $v.CanEdit}}
+			<form method="post" action="{{$.Base}}/f/{{$f.ID}}/entfernen" class="inline keep-scroll" data-confirm="Datei entfernen?">
+				<input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="quiet small">Entfernen</button></form>
+			{{end}}
+		</div>
+	</div>
+	{{end}}
+</section>
+{{else}}
+	<p class="meta">Noch keine Dateien.</p>
+{{end}}
+</div>
+
+{{if .CanEdit}}
+<div id="uppy" data-endpoint="{{$.Base}}/upload/" data-submission="{{$s.ID}}" data-csrf="{{$.CSRF}}"
+	data-maxfile="{{.Quota.MaxFile}}" data-status="{{$.Base}}/e/{{$s.ID}}/status" data-save="{{$.Base}}/e/{{$s.ID}}/speichern"></div>
+<p class="meta">Bis zu {{size .Quota.MaxFile}} je Datei und {{size .Quota.MaxSubmission}} je Einreichung. Ein abgebrochener Upload geht weiter, wenn du dieselbe Datei noch einmal hinzufügst.</p>
+
+<div class="note warn waiting" id="waiting" role="status"{{if not .Busy}} hidden{{end}}>
+	<b class="w-check">Der Server prüft noch deine Dateien: <span id="waitcount">{{.Checked}} von {{len .Files}}</span> fertig.</b>
+	<b class="w-upload" hidden>Deine Dateien werden hochgeladen.</b>
+	Einreichen geht, sobald alle Dateien hochgeladen und geprüft sind. Du kannst die Seite offen lassen oder später wiederkommen; es geht nichts verloren.
+</div>
+{{if eq $s.State "question"}}
+<label class="answer">Deine Antwort an die Moderatoren
+	<textarea name="answer" form="form" rows="4"></textarea></label>
+<div class="btns">
+	<button type="submit" form="form" formaction="{{$.Base}}/e/{{$s.ID}}/antworten" data-wait{{if .Busy}} disabled{{end}}>Antworten und erneut einreichen</button>
+	<button type="submit" form="form" class="quiet">Nur speichern</button>
+</div>
+{{else}}
+<div class="btns">
+	<button type="submit" form="form" class="quiet">Speichern</button>
+	<button type="submit" form="form" formaction="{{$.Base}}/e/{{$s.ID}}/einreichen"
+		data-confirm="Einreichen? Danach kannst du nur noch auf Rückfragen hin ändern." data-wait{{if .Busy}} disabled{{end}}>Einreichen</button>
+	<form method="post" action="{{$.Base}}/e/{{$s.ID}}/loeschen" class="inline" data-confirm="Den Entwurf mit allen Dateien löschen?">
+		<input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="quiet danger">Entwurf löschen</button></form>
+</div>
+{{end}}
+<script type="module" src="{{$.Base}}/static/einreichen.mjs?v={{v}}"></script>
+{{else if .Busy}}
+<div id="poll" data-status="{{$.Base}}/e/{{$s.ID}}/status"></div>
+<script type="module" src="{{$.Base}}/static/einreichen.mjs?v={{v}}"></script>
+{{end}}
+
+{{if and .Mod (not .CanDecide)}}{{template "modpanel" (dict "V" . "Base" $.Base "CSRF" $.CSRF)}}{{end}}
+
+{{if or .Mod .IsOwner}}{{if .Comments}}
+<h2 id="kommentare">{{if .Mod}}Kommentare und Rückfragen{{else}}Rückfragen{{end}}</h2>
+<div class="comments">
+{{range .Comments}}{{if or $v.Mod (ne .Kind "comment")}}
+	<div class="comment c-{{.Kind}}"><div class="cmeta">{{name .Author}} · {{time .Time}}{{if eq .Kind "question"}} · Rückfrage{{else if eq .Kind "answer"}} · Antwort{{end}}</div>
+		<div>{{range lines .Text}}{{.}}<br>{{end}}</div></div>
+{{end}}{{end}}
+</div>
+{{end}}{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "fileinfo"}}{{$v := .V}}{{$fv := .FV}}{{$f := $fv.F}}
+{{if eq $f.Status "processing"}}<span class="busy">wird geprüft …</span>
+{{else if eq $f.Status "error"}}<span class="bad">{{$f.Error}}</span>
+{{else}}
+	{{if $fv.Info.Virus}}<div class="bad">Virenscanner: {{$fv.Info.Virus}}</div>{{end}}
+	{{range $fv.Dups}}<div class="dup">Diese Datei gibt es schon: {{if eq .Where "archive"}}<a href="{{archive .Path}}">{{.Path}}</a>{{else}}in einer anderen <a href="{{$.Base}}/e/{{.Submission}}">Einreichung</a>{{end}}</div>{{end}}
+	<span class="meta">{{kind $f.Kind}}{{if $fv.Info.Pages}} · {{$fv.Info.Pages}} Seiten{{end}}</span>
+	{{if $fv.Info.ListingTotal}}<details class="listing-mini"><summary>{{$fv.Info.ListingTotal}} Einträge, entpackt {{size $fv.Info.Unpacked}}</summary>
+		<pre>{{range first 40 $fv.Info.Listing}}{{.}}
+{{end}}{{if gt $fv.Info.ListingTotal 40}}…{{end}}</pre></details>{{end}}
+	{{with $fv.Sugg}}
+		{{if and .Description (not $v.CanEdit) (ne .Description $f.Description)}}<div class="meta">Vorschlag: „{{.Description}}“{{if $v.CanDecide}} · <a href="#d{{$f.ID}}">bearbeiten</a>{{end}}</div>{{end}}
+		{{if and $v.Mod .FileNote}}<div class="modnote">{{itemlinks .FileNote}}</div>{{end}}
+	{{else}}
+		{{if and $v.CanEdit (eq $f.Status "ready")}}<span class="busy">Vorschlag kommt …</span>{{end}}
+	{{end}}
+	{{if $fv.Tags}}<div class="tags">Schlagworte: {{range $fv.Tags}}<span class="tag">{{.}}</span> {{end}}</div>{{end}}
+{{end}}
+{{end}}
+
+{{define "modpanel"}}{{$v := .V}}{{$s := $v.S}}
+<section class="modpanel">
+<h2>Moderation</h2>
+{{if or (eq $s.State "moderation") (eq $s.State "failed")}}
+	{{if not $s.ClaimedBy.Valid}}
+		<p><a class="button" href="{{.Base}}/e/{{$s.ID}}/uebernehmen">Übernehmen und prüfen</a></p>
+	{{else if $v.MineClaim}}
+		<p class="meta">Du bearbeitest diese Einreichung seit {{time $s.ClaimedAt.Int64}}.
+		<form method="post" action="{{.Base}}/e/{{$s.ID}}/zurueckgeben" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet small">Zurückgeben</button></form></p>
+	{{else}}
+		<p class="meta">{{$v.Claimer}} bearbeitet diese Einreichung seit {{time $s.ClaimedAt.Int64}}.</p>
+	{{end}}
+{{end}}
+
+{{with $v.Final}}<div class="note"><span class="ai">KI</span> {{itemlinks .Summary}}{{if .NotesForModerator}}<div class="modnote">{{itemlinks .NotesForModerator}}</div>{{end}}</div>{{end}}
+{{if eq $s.AnalysisState "failed"}}<p class="note warn">Die KI-Einordnung ist fehlgeschlagen; sie wird alle 30 Minuten wiederholt.</p>{{end}}
+{{if $s.OwnerNote}}<p class="note"><b>Anmerkung des Einreichers:</b> {{$s.OwnerNote}}</p>{{end}}
+
+{{if $v.CanDecide}}
+<form method="post" action="{{.Base}}/e/{{$s.ID}}/aufnehmen" class="decide">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<h3>Dateien</h3>
+	<p class="meta">Hier legst du fest, was ins Archiv kommt: Schlagworte je Gruppe, Beschreibung je Datei (vorbelegt mit dem Vorschlag der KI, frei änderbar) und ob Archive entpackt werden. Die Einzelheiten zu jeder Datei stehen darunter.</p>
+	{{range $v.Groups}}{{$g := .}}
+	<fieldset class="dgroup" id="g{{.N}}">
+		<legend>{{plural (len .Files) "Datei" "Dateien"}}{{with .Sugg}}{{with .Group}} · {{.}}{{end}}{{end}}</legend>
+		<div class="tagfields"><span>Schlagworte</span>
+			{{range .Tags}}<input name="gtag_{{$g.N}}" value="{{.}}" class="tagpick" list="tags" autocomplete="off" size="60">{{end}}
+			<input name="gtag_{{$g.N}}" placeholder="weiteres, z. B. Rechner: Hersteller › Modell" class="tagpick" list="tags" autocomplete="off" size="60">
+			<input name="gtag_{{$g.N}}" placeholder="weiteres, z. B. Art: Hersteller-Dokumentation" class="tagpick" list="tags" autocomplete="off" size="60">
+		</div>
+		{{with .Sugg}}{{if .NewTags}}<div class="meta">Neu angelegt werden: {{range $i, $t := .NewTags}}{{if $i}}, {{end}}{{$t}}{{end}}</div>{{end}}{{end}}
+		{{range .Files}}{{$f := .F}}{{if eq $f.Status "ready"}}
+		<div class="dec" id="d{{$f.ID}}">
+			<input type="hidden" name="grp_{{$f.ID}}" value="{{$g.N}}">
+			<label class="check"><input type="checkbox" name="take_{{$f.ID}}" value="1" checked> <b>{{$f.Name}}</b></label>
+			<span class="meta">{{size $f.Size}}</span>{{if $f.Path}} <a class="dlink" href="{{$.Base}}/f/{{$f.ID}}/datei">herunterladen</a>{{end}}
+			{{range .Dups}} · <span class="dup">gibt es schon: {{if eq .Where "archive"}}<a href="{{archive .Path}}">{{.Path}}</a>{{else}}<a href="{{$.Base}}/e/{{.Submission}}">andere Einreichung</a>{{end}}</span>{{end}}
+			<input name="desc_{{$f.ID}}" aria-label="Beschreibung im Archiv" value="{{if $f.Description}}{{$f.Description}}{{else if .Sugg}}{{.Sugg.Description}}{{end}}" size="80">
+			{{if eq $f.Kind "archive"}}<select name="unpack_{{$f.ID}}" aria-label="Entpacken">
+				<option value=""{{if not $f.Unpack}} selected{{end}}>nicht entpacken: ein Objekt</option>
+				<option value="1"{{if and $f.Unpack (not $f.Split)}} selected{{end}}>entpacken: ein Objekt mit allen Dateien</option>
+				<option value="split"{{if $f.Split}} selected{{end}}>entpacken: je oberster Ordner und Datei ein Objekt</option>
+			</select>{{else if eq $f.Kind "iso"}}<label class="check"><input type="checkbox" name="unpack_{{$f.ID}}" value="1"{{if $f.Unpack}} checked{{end}}> entpacken</label>{{end}}
+			<details class="own"{{if .Own}} open{{end}}><summary>eigene Schlagworte</summary>
+				{{range .Own}}<input name="ftag_{{$f.ID}}" value="{{.}}" class="tagpick" list="tags" autocomplete="off" size="60">{{end}}
+				<input name="ftag_{{$f.ID}}" placeholder="statt der Schlagworte der Gruppe" class="tagpick" list="tags" autocomplete="off" size="60">
+				<input name="ftag_{{$f.ID}}" class="tagpick" list="tags" autocomplete="off" size="60"></details>
+		</div>
+		{{end}}{{end}}
+	</fieldset>
+	{{end}}
+	<datalist id="tags"></datalist>
+	<label>Notiz zur Entscheidung (optional) <input name="note" size="80"></label>
+	<div class="btns"><button type="submit">Aufnehmen</button></div>
+</form>
+
+<details class="act"><summary>Rückfrage an den Einreicher</summary>
+<form method="post" action="{{.Base}}/e/{{$s.ID}}/rueckfrage">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<textarea name="text" rows="3" required placeholder="Was soll der Einreicher klären oder ändern?"></textarea>
+	<button type="submit">Rückfrage senden</button>
+</form></details>
+<details class="act"><summary>Ablehnen</summary>
+<form method="post" action="{{.Base}}/e/{{$s.ID}}/ablehnen" data-confirm="Wirklich ablehnen?">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<textarea name="text" rows="3" required placeholder="Begründung – der Einreicher bekommt sie zu lesen"></textarea>
+	<button type="submit" class="danger">Ablehnen</button>
+</form></details>
+{{end}}
+{{if or (eq $s.State "moderation") (eq $s.State "failed")}}
+<form method="post" action="{{.Base}}/e/{{$s.ID}}/analysieren" class="inline">
+	<input type="hidden" name="csrf" value="{{.CSRF}}"><button class="quiet small">KI neu einordnen lassen</button></form>
+{{end}}
+
+<h3>Kommentar</h3>
+<form method="post" action="{{.Base}}/e/{{$s.ID}}/kommentar">
+	<input type="hidden" name="csrf" value="{{.CSRF}}">
+	<textarea name="text" rows="2" placeholder="Nur für Moderatoren"></textarea>
+	<button type="submit" class="quiet">Kommentieren</button>
+</form>
+{{block "submission-extra" .V}}{{end}}
+
+<details class="act"><summary>Protokoll</summary>
+<div class="log">{{range $v.Events}}<div>{{time .Time}} · {{if eq .Actor "system"}}System{{else}}{{name .Actor}}{{end}} · {{evt .Action}}</div>{{end}}</div>
+</details>
+<script type="module" src="{{.Base}}/static/einreichen.mjs?v={{v}}"></script>
+</section>
+{{end}}

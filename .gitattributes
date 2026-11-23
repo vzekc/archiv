@@ -1,0 +1,2 @@
+# the test archive keeps its CRLF line ends and binary bytes as they are
+server/testdata/** -text

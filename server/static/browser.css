@@ -1,0 +1,67 @@
+/* Archiv-Browser */
+.wrap:has(.browser) { max-width: none; }
+.browser { display: grid; grid-template-columns: minmax(14em, 22em) 1fr; gap: 1em; align-items: start; }
+.browser aside { position: sticky; top: .5em; max-height: calc(100vh - 2em); overflow: auto; border-right: 1px solid #ddd; padding-right: .5em; }
+.tree, .tree ul { list-style: none; margin: 0; padding: 0; }
+.tree ul { padding-left: 1em; }
+.tree .tn { display: flex; gap: .3em; align-items: baseline; padding: .1em .2em; cursor: pointer; border-radius: 3px; }
+.tree .tn:hover { background: #eef2f7; }
+.tree .tn.cur { background: #dde6f2; font-weight: bold; }
+.tree .tn.drop { outline: 2px dashed #48c; background: #e8f0fb; }
+.tree .tog { width: 1em; color: #888; }
+.tree .tc { margin-left: auto; color: #888; font-size: .8em; }
+.browser .bar { display: flex; flex-wrap: wrap; gap: .4em; align-items: center; }
+.browser .bar h1 { margin: 0; font-size: 1.3em; }
+.browser .tools { margin: .5em 0; }
+.browser .tools button, .browser .subs button { padding: .25em .6em; }
+.browser .views button.on { background: #dde6f2; font-weight: bold; }
+.browser .bq input { padding: .25em .4em; }
+.browser .subs { display: flex; flex-wrap: wrap; gap: .3em; margin: .3em 0 .6em; }
+.browser .subs .sub { border: 1px solid #ccd; background: #f7f8fa; border-radius: 4px; cursor: pointer; }
+.pane { max-height: calc(100vh - 13em); overflow: auto; border-top: 1px solid #ddd; }
+.items .it { display: grid; grid-template-columns: 1fr auto; gap: 0 .6em; padding: .3em .4em; border-bottom: 1px solid #eee; cursor: default; user-select: none; }
+.items .it:hover { background: #f6f8fb; }
+.items .it.sel, .items tr.sel { background: #dde6f2; }
+.items .it.cut { opacity: .5; }
+.items .it .im { grid-column: 1; color: #777; font-size: .85em; }
+.items .it .tags { grid-column: 1 / -1; }
+.items .it .open { text-decoration: none; color: #888; }
+.items .others { color: #a60; }
+.items.v-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(11em, 1fr)); gap: .6em; padding-top: .6em; }
+.items.v-tiles .it { display: block; border: 1px solid #e3e3e3; border-radius: 4px; }
+.items.v-tiles .it img { display: block; max-width: 100%; max-height: 14em; margin: 0 auto .3em; }
+.items.v-tiles .it .tags { display: none; }
+.items table { border-collapse: collapse; width: 100%; }
+.items th { text-align: left; position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ccc; padding: .2em .4em; }
+.items td { border-bottom: 1px solid #eee; padding: .2em .4em; vertical-align: top; }
+.items td[contenteditable=plaintext-only]:focus { outline: 2px solid #48c; background: #fff; }
+.tags a.tag { font-size: .75em; padding: 0 .45em; }
+.session { margin-top: .6em; font-size: .9em; }
+.session li button { font-size: .8em; }
+.keys { font-size: .8em; }
+.toast { position: fixed; bottom: 1em; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: .5em 1em; border-radius: 4px; z-index: 10; }
+.toast button { margin-left: .6em; }
+dialog.confirm { border: 1px solid #aaa; border-radius: 6px; padding: 1em 1.2em; min-width: 22em; }
+dialog.confirm h3 { margin-top: 0; }
+dialog.confirm label { display: grid; gap: .2em; margin: .5em 0; }
+dialog.confirm input { font: inherit; padding: .3em; }
+dialog.confirm .buttons { display: flex; gap: .5em; margin-top: 1em; }
+@media (max-width: 50em) { .browser { grid-template-columns: 1fr; } .browser aside { position: static; max-height: 30vh; } }
+.pane.dropfiles { outline: 3px dashed #48c; background: #f2f7fd; }
+
+@media (prefers-color-scheme: dark) {
+	.browser aside, .pane { border-color: #3a3934; }
+	.tree .tn:hover, .items .it:hover { background: #2a2d33; }
+	.tree .tn.cur, .browser .views button.on, .items .it.sel, .items tr.sel { background: #2f3b4d; }
+	.tree .tn.drop { background: #263247; }
+	.tree .tog, .tree .tc, .items .it .im, .items .it .open { color: #8a857c; }
+	.browser .subs .sub { background: #262624; border-color: #434a56; }
+	.items .it, .items td { border-bottom-color: #33332f; }
+	.items .others { color: #e0a565; }
+	.items.v-tiles .it { border-color: #3a3934; }
+	.items th { background: #1a1a18; border-bottom-color: #4a4a46; }
+	.items td[contenteditable=plaintext-only]:focus { background: #232320; }
+	.toast { background: #ece9e3; color: #1a1a18; }
+	dialog.confirm { border-color: #4a4a46; }
+	.pane.dropfiles { background: #1f2733; }
+}

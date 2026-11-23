@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: Format
+        working-directory: server
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - name: Vet
+        working-directory: server
+        run: go vet ./...
+      - name: Tests
+        working-directory: server
+        run: go test ./...
+      - name: Python
+        run: for f in bin/*.py bin/ocr-status; do python3 -m py_compile "$f"; done
+      - name: Docker image
+        run: docker build -t archiv .

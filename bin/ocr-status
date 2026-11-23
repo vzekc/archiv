@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""
+State of the full text: how much of the collection is searchable, what is
+waiting for OCR, how fast the OCR service is going, and when it will be done.
+
+Usage:  ocr-status
+"""
+
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import textstore  # noqa: E402
+
+PRIO = {1: "Zeitschriften ohne Text", 2: "duenne Textebene", 3: "andere Scans",
+        4: "altes OCR, seitenweise neu"}
+
+
+def num(n):
+    return f"{int(n or 0):,}".replace(",", ".")
+
+
+def main():
+    db = textstore.connect()
+
+    print("Volltext")
+    for tool, n, pages, chars in db.execute(
+            "SELECT tool, COUNT(*), SUM(n_pages), SUM(chars) FROM docs WHERE state = 'done'"
+            " GROUP BY tool ORDER BY 2 DESC"):
+        print(f"  {tool:16s} {num(n):>8s} Dokumente {num(pages):>11s} Seiten"
+              f" {chars / 1e6:9.1f} Mio. Zeichen")
+    for state, n in db.execute("SELECT state, COUNT(*) FROM docs WHERE state <> 'done'"
+                               " GROUP BY state"):
+        print(f"  {state:16s} {num(n):>8s} Dokumente")
+
+    print("\nWarteschlange OCR")
+    for prio, state, n, total, done in db.execute(
+            "SELECT priority, state, COUNT(*), SUM(pages_total), SUM(pages_done)"
+            " FROM ocr_queue GROUP BY priority, state ORDER BY priority, state"):
+        extra = f", {num(done)} von {num(total)} Seiten" if total else ""
+        print(f"  {prio} {PRIO.get(prio, ''):28s} {state:8s} {num(n):>6s}{extra}")
+    for lang, n in db.execute("SELECT lang, COUNT(*) FROM ocr_queue WHERE state = 'queued'"
+                              " GROUP BY lang ORDER BY 2 DESC"):
+        print(f"    wartend {lang:8s} {num(n):>6s}")
+
+    for path, done, total in db.execute(
+            "SELECT path, pages_done, pages_total FROM ocr_queue WHERE state = 'running'"):
+        print(f"  laeuft: {path} ({done}/{total or '?'})")
+
+    # speed from what finished in the last 24 hours
+    since = int(time.time()) - 86400
+    pages, docs = db.execute(
+        "SELECT COALESCE(SUM(pages_total), 0), COUNT(*) FROM ocr_queue"
+        " WHERE state = 'done' AND finished > ?", (since,)).fetchone()
+    first = db.execute("SELECT MIN(started) FROM ocr_queue WHERE state = 'done'"
+                       " AND finished > ?", (since,)).fetchone()[0]
+    if pages and first:
+        hours = max(0.1, (time.time() - max(first, since)) / 3600)
+        rate = pages / hours
+        left = db.execute(
+            "SELECT COUNT(*), COALESCE(SUM(pages_total - pages_done), 0) FROM ocr_queue"
+            " WHERE state IN ('queued', 'running')").fetchone()
+        # documents not started yet have no page count; assume the average
+        avg = db.execute("SELECT AVG(pages_total) FROM ocr_queue WHERE pages_total > 0"
+                         ).fetchone()[0] or 80
+        unknown = db.execute("SELECT COUNT(*) FROM ocr_queue WHERE state = 'queued'"
+                             " AND pages_total IS NULL").fetchone()[0]
+        remaining = left[1] + unknown * avg
+        print(f"\nTempo: {num(docs)} Dokumente, {num(pages)} Seiten in 24 h,"
+              f" rund {rate:.0f} Seiten/h")
+        print(f"Rest: ca. {num(remaining)} Seiten, fertig in ca. {remaining / rate:.0f} h")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

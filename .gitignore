@@ -1,0 +1,10 @@
+# Eine Installation im Repository (ARCHIV_HOME = Checkout) legt hier ihre
+# Daten ab; versioniert wird nur das Werkzeug.
+/html/
+/data/
+/eingang/
+/backup/
+/archiv/
+/server/archiv
+__pycache__/
+*.tmp

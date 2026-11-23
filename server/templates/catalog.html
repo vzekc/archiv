@@ -1,0 +1,39 @@
+{{define "import-report"}}{{template "head" .}}{{$r := .Data}}
+<h1>Katalog: Stand des Imports</h1>
+{{if not $r.LastSync}}
+<p class="note warn">Der Katalog ist noch leer: <code>archiv import</code> ist noch nicht gelaufen.</p>
+{{else}}
+<p class="meta">Letzter Abgleich mit dem Archiv: {{time $r.LastSync}}</p>
+
+<table class="report">
+<tr><th>Objekte</th><td>{{$r.Items}}</td></tr>
+<tr><th>davon nicht mehr auf der Platte</th><td>{{$r.Missing}}</td></tr>
+<tr><th>in andere aufgegangen</th><td>{{$r.Merged}}</td></tr>
+<tr><th>verschiedene Dateien (nach Prüfsumme)</th><td>{{$r.Files}} · {{size $r.Bytes}}</td></tr>
+<tr><th>Ablageorte</th><td>{{$r.Paths}}{{if $r.Vanished}}, davon {{$r.Vanished}} verschwunden{{end}}</td></tr>
+</table>
+
+<h2>Facetten</h2>
+<table class="report">
+<tr><th>Facette</th><th>Schlagworte</th><th>Objekte</th></tr>
+{{range $r.Facets}}<tr><td>{{.Facet}}</td><td>{{.Tags}}</td><td>{{.Items}}</td></tr>{{end}}
+</table>
+<p class="meta">{{$r.Weak}} Objekte tragen eine nur aus dem Ordner geratene Art („weak“); die KI darf sie ersetzen.</p>
+
+<h2>Unsortiert: {{$r.Untagged}}</h2>
+<p class="meta">Ohne Art (oder nur aus dem Ordner geraten), oder ohne Rechner, wo einer hingehört.</p>
+{{if $r.UntaggedSample}}<p class="meta">Die ersten {{len $r.UntaggedSample}} nach Ablageort:</p>
+<ul class="report">{{range $r.UntaggedSample}}<li><a href="/{{.Path}}">{{.Path}}</a>{{if ne .Title (base .Path)}} – {{.Title}}{{end}}</li>{{end}}</ul>{{end}}
+
+<h2>Dubletten: {{$r.Dups}}</h2>
+<p class="meta">Gleiche Bytes an mehreren Orten, die größten zuerst.</p>
+{{range $r.DupSample}}<div class="dup"><span class="meta">{{size .Size}}</span>
+<ul>{{range .Paths}}<li><a href="/{{.}}">{{.}}</a></li>{{end}}</ul></div>{{end}}
+
+<h2>Regeln aus legacy-map.conf</h2>
+<table class="report">
+<tr><th>Zeile</th><th>Treffer</th><th>Regel</th></tr>
+{{range $r.Rules}}<tr{{if not .Hits}} class="warn"{{end}}><td>{{.Line}}</td><td>{{.Hits}}</td><td><code>{{.Text}}</code></td></tr>{{end}}
+</table>
+{{end}}
+{{template "foot" .}}{{end}}

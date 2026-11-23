@@ -1,0 +1,8 @@
+services:
+  archiv:
+    build: .
+    ports:
+      - "8095:8095"
+    volumes:
+      - ./archiv:/archiv
+    restart: unless-stopped
